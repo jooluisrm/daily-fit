@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef, UIEvent } from "react"
 import { useParams } from "next/navigation"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { Dumbbell, ChevronDown, ChevronUp, Save, TrendingUp, Loader2, MoreVertical, Edit2, PowerOff, Power } from "lucide-react"
+import { Dumbbell, ChevronDown, ChevronUp, Save, TrendingUp, Loader2, MoreVertical, Edit2, PowerOff, Power, List } from "lucide-react"
 import Image from "next/image"
 import { CartesianGrid, Line, LineChart, XAxis, YAxis, Tooltip } from "recharts"
 import { ChartConfig, ChartContainer, ChartTooltipContent } from "@/components/ui/chart"
@@ -24,10 +24,6 @@ const chartConfig = {
   weight: {
     label: "Peso (kg)",
     color: "var(--primary)",
-  },
-  repsDone: {
-    label: "Repetições",
-    color: "#a1a1aa",
   }
 } satisfies ChartConfig
 
@@ -36,6 +32,8 @@ export function ExerciseCard({ workoutExercise, isCompleted }: ExerciseProps) {
 
   const [isExpanded, setIsExpanded] = useState(false)
   const [selectedSet, setSelectedSet] = useState<number>(0) // 0 = Média geral, 1 a N = Séries
+  const [activeView, setActiveView] = useState<'chart' | 'list'>('list')
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
   const [currentWeightInput, setCurrentWeightInput] = useState("")
   const [currentRepsInput, setCurrentRepsInput] = useState("")
 
@@ -90,6 +88,26 @@ export function ExerciseCard({ workoutExercise, isCompleted }: ExerciseProps) {
 
   const lastLog = chartData.length > 0 ? chartData[chartData.length - 1] : null
   const lastWeight = lastLog ? lastLog.weight : 0
+
+  const handleScroll = (e: UIEvent<HTMLDivElement>) => {
+    const scrollLeft = e.currentTarget.scrollLeft;
+    const width = e.currentTarget.clientWidth;
+    const newView = scrollLeft > width / 2 ? 'chart' : 'list'; // chart is now on the right
+    if (newView !== activeView) {
+      setActiveView(newView);
+    }
+  };
+
+  const scrollToView = (view: 'list' | 'chart') => {
+    setActiveView(view);
+    if (scrollContainerRef.current) {
+      const width = scrollContainerRef.current.clientWidth;
+      scrollContainerRef.current.scrollTo({
+        left: view === 'list' ? 0 : width, // list is 0, chart is width
+        behavior: 'smooth'
+      });
+    }
+  };
 
   useEffect(() => {
     if (selectedSet > 0) {
@@ -239,49 +257,104 @@ export function ExerciseCard({ workoutExercise, isCompleted }: ExerciseProps) {
         {isExpanded && (
           <div className="border-t border-zinc-800 bg-zinc-950/50 p-4 sm:p-6 animate-in slide-in-from-top-2 duration-200">
 
-            {/* Título do Gráfico */}
-            <div className="flex items-center gap-2 mb-4">
-              <TrendingUp className="w-5 h-5 text-primary" />
-              <h4 className="text-white font-medium">
-                {selectedSet === 0 ? "Média de Peso (Histórico)" : `Histórico - Série ${selectedSet}`}
-              </h4>
+            {/* Título e Controles de Visualização */}
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <TrendingUp className="w-5 h-5 text-primary" />
+                <h4 className="text-white font-medium">
+                  {selectedSet === 0 ? "Média de Peso (Histórico)" : `Histórico - Série ${selectedSet}`}
+                </h4>
+              </div>
+              <div className="flex gap-1 bg-zinc-900 p-1 rounded-full border border-zinc-800">
+                <button 
+                  onClick={() => scrollToView('list')}
+                  className={`w-6 h-6 rounded-full flex items-center justify-center transition-colors ${activeView === 'list' ? 'bg-primary text-primary-foreground' : 'text-zinc-500 hover:text-zinc-300'}`}
+                >
+                  <List className="w-3.5 h-3.5" />
+                </button>
+                <button 
+                  onClick={() => scrollToView('chart')}
+                  className={`w-6 h-6 rounded-full flex items-center justify-center transition-colors ${activeView === 'chart' ? 'bg-primary text-primary-foreground' : 'text-zinc-500 hover:text-zinc-300'}`}
+                >
+                  <TrendingUp className="w-3.5 h-3.5" />
+                </button>
+              </div>
             </div>
 
-            {/* Gráfico */}
-            <div className="h-48 w-full mb-6">
-              {chartData.length > 0 ? (
-                <ChartContainer config={chartConfig} className="h-full w-full">
-                  <LineChart data={chartData} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
-                    <XAxis dataKey="date" stroke="#a1a1aa" fontSize={12} tickLine={false} axisLine={false} />
-                    <YAxis yAxisId="left" stroke="#a1a1aa" fontSize={12} tickLine={false} axisLine={false} />
-                    <YAxis yAxisId="right" orientation="right" stroke="#a1a1aa" fontSize={12} tickLine={false} axisLine={false} />
-                    <Tooltip content={<ChartTooltipContent />} />
-                    <Line
-                      yAxisId="left"
-                      type="monotone"
-                      dataKey="weight"
-                      stroke="var(--primary)"
-                      strokeWidth={3}
-                      dot={{ fill: "var(--primary)", r: 4 }}
-                      activeDot={{ r: 6 }}
-                    />
-                    <Line
-                      yAxisId="right"
-                      type="monotone"
-                      dataKey="repsDone"
-                      stroke="#8b5cf6"
-                      strokeWidth={2}
-                      strokeDasharray="4 4"
-                      dot={{ fill: "#8b5cf6", r: 3 }}
-                    />
-                  </LineChart>
-                </ChartContainer>
-              ) : (
-                <div className="h-full w-full flex items-center justify-center text-zinc-500 text-sm bg-zinc-900/30 rounded-lg border border-zinc-800/50 border-dashed">
-                  Nenhum dado registrado para esta série ainda.
+            {/* Container Swipeable */}
+            <div className="mb-6 relative">
+              <div 
+                ref={scrollContainerRef}
+                onScroll={handleScroll}
+                className="flex w-full snap-x snap-mandatory overflow-x-auto hide-scrollbar"
+              >
+                {/* Visualização 1: Lista */}
+                <div className="w-full flex-shrink-0 snap-center px-1">
+                  <div className="h-48 w-full overflow-y-auto pr-1 flex flex-col gap-2 custom-scrollbar">
+                    {chartData.length > 0 ? (
+                      [...chartData].reverse().map((log: any, index: number) => (
+                        <div key={index} className="flex items-center justify-between p-3 rounded-lg bg-zinc-900/50 border border-zinc-800/50 relative">
+                          <div className="flex items-center gap-3">
+                            <div className="bg-zinc-800 rounded-md p-2 text-zinc-400">
+                              <Dumbbell className="w-4 h-4" />
+                            </div>
+                            <span className="text-zinc-300 text-sm font-medium">{log.date}</span>
+                            {index === 0 && (
+                              <span className="bg-primary/20 text-primary text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ml-1">
+                                Último
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-4">
+                            <div className="text-right">
+                              <span className="text-white font-bold">{log.weight} kg</span>
+                              <span className="text-zinc-500 text-xs ml-2">x {log.repsDone} reps</span>
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="h-full w-full flex items-center justify-center text-zinc-500 text-sm bg-zinc-900/30 rounded-lg border border-zinc-800/50 border-dashed">
+                        Nenhum dado registrado para esta série ainda.
+                      </div>
+                    )}
+                  </div>
                 </div>
-              )}
+
+                {/* Visualização 2: Gráfico */}
+                <div className="w-full flex-shrink-0 snap-center px-1">
+                  <div className="h-48 w-full">
+                    {chartData.length > 0 ? (
+                      <ChartContainer config={chartConfig} className="h-full w-full">
+                        <LineChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
+                          <XAxis dataKey="date" stroke="#a1a1aa" fontSize={12} tickLine={false} axisLine={false} />
+                          <YAxis stroke="#a1a1aa" fontSize={12} tickLine={false} axisLine={false} />
+                          <Tooltip content={<ChartTooltipContent />} />
+                          <Line
+                            type="monotone"
+                            dataKey="weight"
+                            stroke="var(--primary)"
+                            strokeWidth={3}
+                            dot={{ fill: "var(--primary)", r: 4 }}
+                            activeDot={{ r: 6 }}
+                          />
+                        </LineChart>
+                      </ChartContainer>
+                    ) : (
+                      <div className="h-full w-full flex items-center justify-center text-zinc-500 text-sm bg-zinc-900/30 rounded-lg border border-zinc-800/50 border-dashed">
+                        Nenhum dado registrado para esta série ainda.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Dots Indicator */}
+              <div className="flex justify-center gap-2 mt-3">
+                <button onClick={() => scrollToView('list')} className={`w-1.5 h-1.5 rounded-full transition-all ${activeView === 'list' ? 'bg-primary w-3' : 'bg-zinc-700'}`} aria-label="Ver lista" />
+                <button onClick={() => scrollToView('chart')} className={`w-1.5 h-1.5 rounded-full transition-all ${activeView === 'chart' ? 'bg-primary w-3' : 'bg-zinc-700'}`} aria-label="Ver gráfico" />
+              </div>
             </div>
 
             {/* Abas das Séries */}
