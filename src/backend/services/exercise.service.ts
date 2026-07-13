@@ -154,4 +154,65 @@ export class ExerciseService {
 
     return log;
   }
+
+  /**
+   * Atualiza os dados de um exercício do treino (ou inativa)
+   */
+  static async updateWorkoutExercise(
+    workoutExerciseId: string,
+    userId: string,
+    data: { name?: string; imageUrl?: string; sets?: number; reps?: string; isActive?: boolean }
+  ) {
+    // Garantir que a pessoa é dona desse treino
+    const workoutExercise = await prisma.workoutExercise.findUnique({
+      where: { id: workoutExerciseId },
+      include: { workout: true, exercise: true }
+    });
+
+    if (!workoutExercise || workoutExercise.workout.userId !== userId) {
+      throw new Error('Exercício não encontrado ou não autorizado.');
+    }
+
+    let currentExerciseId = workoutExercise.exerciseId;
+
+    // Se mudou o nome ou imagem, temos que buscar/criar o Exercício base e apontar pra ele
+    if (data.name || data.imageUrl) {
+      const targetName = data.name || workoutExercise.exercise.name;
+      let targetExercise = await prisma.exercise.findFirst({
+        where: { name: targetName }
+      });
+
+      if (!targetExercise) {
+        targetExercise = await prisma.exercise.create({
+          data: {
+            name: targetName,
+            imageUrl: data.imageUrl || workoutExercise.exercise.imageUrl
+          }
+        });
+      } else if (data.imageUrl && !targetExercise.imageUrl) {
+        targetExercise = await prisma.exercise.update({
+          where: { id: targetExercise.id },
+          data: { imageUrl: data.imageUrl }
+        });
+      }
+      currentExerciseId = targetExercise.id;
+    }
+
+    // Atualiza o WorkoutExercise
+    const updateData: any = { exerciseId: currentExerciseId };
+    if (data.sets !== undefined) updateData.sets = data.sets;
+    if (data.reps !== undefined) updateData.reps = data.reps;
+    if (data.isActive !== undefined) updateData.isActive = data.isActive;
+
+    const updatedWorkoutExercise = await prisma.workoutExercise.update({
+      where: { id: workoutExerciseId },
+      data: updateData,
+      include: {
+        exercise: true,
+        logs: true
+      }
+    });
+
+    return updatedWorkoutExercise;
+  }
 }

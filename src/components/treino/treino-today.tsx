@@ -22,7 +22,7 @@ export function TreinoToday() {
 
   // Pegar o dia da semana atual (0 = Domingo, 6 = Sábado)
   const todayIndex = new Date().getDay()
-  const todayWorkout = workouts?.find(w => w.daysOfWeek.includes(todayIndex))
+  const todayWorkout = workouts?.find(w => w.isActive && w.daysOfWeek.includes(todayIndex))
 
   const { data: exercises, isLoading: isLoadingExercises } = useWorkoutExercises(todayWorkout?.id || "")
   
@@ -139,20 +139,20 @@ export function TreinoToday() {
       {/* Lista de Exercícios */}
       <div className="space-y-4">
         <h2 className="text-xl font-semibold text-white mb-4">
-          Exercícios {exercises ? `(${exercises.length})` : ""}
+          Exercícios {exercises ? `(${exercises.filter(ex => ex.isActive).length})` : ""}
         </h2>
 
         {isLoadingExercises ? (
           <div className="flex justify-center py-6">
             <Loader2 className="w-6 h-6 text-primary animate-spin" />
           </div>
-        ) : !exercises || exercises.length === 0 ? (
+        ) : !exercises || exercises.filter(ex => ex.isActive).length === 0 ? (
           <div className="bg-zinc-900/50 border border-dashed border-zinc-800 rounded-xl p-8 flex flex-col items-center justify-center text-center">
             <Dumbbell className="w-8 h-8 text-zinc-600 mb-2" />
-            <p className="text-zinc-400">Nenhum exercício cadastrado nesta ficha.</p>
+            <p className="text-zinc-400">Nenhum exercício cadastrado ou todos estão desativados nesta ficha.</p>
           </div>
         ) : (
-          exercises.map((workoutExercise) => (
+          exercises.filter(ex => ex.isActive).map((workoutExercise) => (
             <ExerciseCard key={workoutExercise.id} workoutExercise={workoutExercise} isCompleted={isCompleted} />
           ))
         )}

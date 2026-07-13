@@ -9,6 +9,13 @@ export const useWorkoutExercises = (workoutId: string) => {
   });
 };
 
+export const useCatalogExercises = () => {
+  return useQuery({
+    queryKey: ['catalog-exercises'],
+    queryFn: () => ExerciseAPI.getAllExercises(),
+  });
+};
+
 export const useAddExerciseToWorkout = (workoutId: string) => {
   const queryClient = useQueryClient();
 
@@ -30,6 +37,18 @@ export const useLogExercise = (workoutId: string) => {
       ExerciseAPI.logExercise(workoutExerciseId, { setNumber, weight, repsDone }),
     onSuccess: () => {
       // Invalida a lista para que a UI receba os dados do último log atualizados
+      queryClient.invalidateQueries({ queryKey: ['workout-exercises', workoutId] });
+    },
+  });
+};
+
+export const useUpdateWorkoutExercise = (workoutId: string) => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ workoutExerciseId, data }: { workoutExerciseId: string, data: { name?: string; imageUrl?: string; sets?: number; reps?: string; isActive?: boolean } }) => 
+      ExerciseAPI.updateWorkoutExercise(workoutExerciseId, data),
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['workout-exercises', workoutId] });
     },
   });

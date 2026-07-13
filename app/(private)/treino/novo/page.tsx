@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card } from "@/components/ui/card"
-import { useCreateWorkout } from "@/src/hooks/use-workout"
+import { useCreateWorkout, useWorkouts } from "@/src/hooks/use-workout"
 import { toast } from "sonner"
 
 const DAYS_OF_WEEK = [
@@ -22,12 +22,17 @@ const DAYS_OF_WEEK = [
 
 export default function NovoTreinoPage() {
   const router = useRouter()
+  const { data: workouts } = useWorkouts()
   const { mutateAsync: createWorkout, isPending } = useCreateWorkout()
 
   const [name, setName] = useState("")
   const [selectedDays, setSelectedDays] = useState<number[]>([])
 
+  // Dias já alocados em outros treinos
+  const disabledDays = workouts?.flatMap(w => w.daysOfWeek) || []
+
   const toggleDay = (dayId: number) => {
+    if (disabledDays.includes(dayId)) return;
     setSelectedDays(prev => 
       prev.includes(dayId) 
         ? prev.filter(d => d !== dayId)
@@ -84,14 +89,20 @@ export default function NovoTreinoPage() {
           <div className="flex flex-wrap gap-2">
             {DAYS_OF_WEEK.map((day) => {
               const isSelected = selectedDays.includes(day.id)
+              const isDisabled = disabledDays.includes(day.id)
+              
               return (
                 <button
                   key={day.id}
                   onClick={() => toggleDay(day.id)}
+                  disabled={isDisabled}
+                  title={isDisabled ? "Você já possui um treino neste dia" : ""}
                   className={`px-4 py-2 rounded-lg font-medium text-sm transition-all border ${
                     isSelected 
                       ? "bg-primary text-white border-primary shadow-lg shadow-primary/20" 
-                      : "bg-zinc-950 text-zinc-400 border-zinc-800 hover:text-white hover:border-zinc-700 hover:bg-zinc-800"
+                      : isDisabled
+                        ? "bg-zinc-900/50 text-zinc-600 border-zinc-800/50 cursor-not-allowed"
+                        : "bg-zinc-950 text-zinc-400 border-zinc-800 hover:text-white hover:border-zinc-700 hover:bg-zinc-800"
                   }`}
                 >
                   {day.label}

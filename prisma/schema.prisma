@@ -91,6 +91,7 @@ model Workout {
   userId      String
   name        String
   daysOfWeek  String   // Armazena JSON com os dias da semana (ex: "[1,3,5]")
+  isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -116,6 +117,7 @@ model WorkoutExercise {
   sets        Int
   reps        String
   order       Int      @default(0)
+  isActive    Boolean  @default(true)
 
   workout     Workout  @relation(fields: [workoutId], references: [id], onDelete: Cascade)
   exercise    Exercise @relation(fields: [exerciseId], references: [id], onDelete: Cascade)

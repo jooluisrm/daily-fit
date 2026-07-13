@@ -19,3 +19,15 @@ export const useCreateWorkout = () => {
     },
   });
 };
+
+export const useUpdateWorkout = (workoutId: string) => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (data: { name?: string, daysOfWeek?: number[], isActive?: boolean }) => WorkoutAPI.updateWorkout(workoutId, data),
+    onSuccess: () => {
+      // Atualiza o cache da lista de treinos
+      queryClient.invalidateQueries({ queryKey: ['workouts'] });
+    },
+  });
+};

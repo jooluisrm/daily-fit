@@ -5,11 +5,14 @@ import { useParams } from "next/navigation"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Dumbbell, ChevronDown, ChevronUp, Save, TrendingUp, Loader2 } from "lucide-react"
+import { Label } from "@/components/ui/label"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { Dumbbell, ChevronDown, ChevronUp, Save, TrendingUp, Loader2, MoreVertical, Edit2, PowerOff, Power } from "lucide-react"
 import Image from "next/image"
 import { CartesianGrid, Line, LineChart, XAxis, YAxis, Tooltip } from "recharts"
 import { ChartConfig, ChartContainer, ChartTooltipContent } from "@/components/ui/chart"
-import { useLogExercise } from "@/src/hooks/use-exercise"
+import { useLogExercise, useUpdateWorkoutExercise } from "@/src/hooks/use-exercise"
 import { toast } from "sonner"
 
 interface ExerciseProps {
@@ -36,7 +39,11 @@ export function ExerciseCard({ workoutExercise, isCompleted }: ExerciseProps) {
   const [currentWeightInput, setCurrentWeightInput] = useState("")
   const [currentRepsInput, setCurrentRepsInput] = useState("")
 
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false)
+  const [editForm, setEditForm] = useState({ name: "", imageUrl: "", sets: "", reps: "" })
+
   const { mutateAsync: logExercise, isPending: isSaving } = useLogExercise(workoutId)
+  const { mutateAsync: updateExercise, isPending: isUpdating } = useUpdateWorkoutExercise(workoutId)
 
   // Extrair os dados reais do banco
   const exerciseData = workoutExercise.exercise
@@ -112,8 +119,54 @@ export function ExerciseCard({ workoutExercise, isCompleted }: ExerciseProps) {
     }
   }
 
+  const handleOpenEdit = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    setEditForm({
+      name: exerciseData.name,
+      imageUrl: exerciseData.imageUrl || "",
+      sets: String(sets),
+      reps: reps
+    })
+    setIsEditModalOpen(true)
+  }
+
+  const handleSaveEdit = async () => {
+    if (!editForm.name || !editForm.sets || !editForm.reps) {
+      toast.error("Preencha os campos obrigatórios.")
+      return
+    }
+    try {
+      await updateExercise({
+        workoutExerciseId: workoutExercise.id,
+        data: {
+          name: editForm.name,
+          imageUrl: editForm.imageUrl,
+          sets: Number(editForm.sets),
+          reps: editForm.reps
+        }
+      })
+      toast.success("Exercício atualizado!")
+      setIsEditModalOpen(false)
+    } catch (error: any) {
+      toast.error(error?.response?.data?.error || "Erro ao atualizar exercício.")
+    }
+  }
+
+  const handleToggleActive = async (e: React.MouseEvent) => {
+    e.stopPropagation()
+    try {
+      await updateExercise({
+        workoutExerciseId: workoutExercise.id,
+        data: { isActive: !workoutExercise.isActive }
+      })
+      toast.success(workoutExercise.isActive ? "Exercício desativado." : "Exercício reativado!")
+    } catch (error) {
+      toast.error("Erro ao alterar status do exercício.")
+    }
+  }
+
   return (
-    <Card className="bg-zinc-900 border-zinc-800 overflow-hidden hover:border-zinc-700 transition-colors">
+    <Card className={`bg-zinc-900 border-zinc-800 overflow-hidden hover:border-zinc-700 transition-colors ${!workoutExercise.isActive ? 'opacity-50 grayscale' : ''}`}>
       <CardContent className="p-0">
 
         {/* Cabeçalho do Exercício (Sempre visível) */}
@@ -146,8 +199,38 @@ export function ExerciseCard({ workoutExercise, isCompleted }: ExerciseProps) {
             </div>
 
             {/* Ícone de Expansão */}
-            <div className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-500">
+            <div className="absolute right-12 sm:right-16 top-1/2 -translate-y-1/2 text-zinc-500">
               {isExpanded ? <ChevronUp className="w-6 h-6" /> : <ChevronDown className="w-6 h-6" />}
+            </div>
+
+            {/* Menu de Ações */}
+            <div className="absolute right-2 sm:right-4 top-1/2 -translate-y-1/2">
+              <DropdownMenu>
+                <DropdownMenuTrigger render={
+                  <Button variant="ghost" size="icon" className="text-zinc-400 hover:text-white" onClick={(e) => e.stopPropagation()}>
+                    <MoreVertical className="w-5 h-5" />
+                  </Button>
+                } />
+                <DropdownMenuContent align="end" className="bg-zinc-950 border-zinc-800 text-zinc-100 w-48">
+                  <DropdownMenuItem onClick={handleOpenEdit} className="cursor-pointer hover:bg-zinc-900 focus:bg-zinc-900 py-2.5">
+                    <Edit2 className="w-4 h-4 mr-2 text-zinc-400" />
+                    <span>Editar Exercício</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleToggleActive} className="cursor-pointer hover:bg-zinc-900 focus:bg-zinc-900 py-2.5">
+                    {workoutExercise.isActive ? (
+                      <>
+                        <PowerOff className="w-4 h-4 mr-2 text-red-400" />
+                        <span className="text-red-400">Desativar</span>
+                      </>
+                    ) : (
+                      <>
+                        <Power className="w-4 h-4 mr-2 text-emerald-400" />
+                        <span className="text-emerald-400">Reativar</span>
+                      </>
+                    )}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
         </div>
@@ -284,6 +367,72 @@ export function ExerciseCard({ workoutExercise, isCompleted }: ExerciseProps) {
           </div>
         )}
       </CardContent>
+
+      <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
+        <DialogContent className="bg-zinc-950 border-zinc-800 text-zinc-100 sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold text-white">Editar Exercício</DialogTitle>
+            <DialogDescription className="text-zinc-400">
+              Altere os detalhes do exercício para este treino.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-image" className="text-zinc-300">URL da Imagem (Opcional)</Label>
+              <Input
+                id="edit-image"
+                value={editForm.imageUrl}
+                onChange={e => setEditForm(p => ({ ...p, imageUrl: e.target.value }))}
+                placeholder="Link da imagem..."
+                className="bg-zinc-900 border-zinc-800 text-white focus-visible:ring-primary h-11"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-name" className="text-zinc-300">Nome do Exercício *</Label>
+              <Input
+                id="edit-name"
+                value={editForm.name}
+                onChange={e => setEditForm(p => ({ ...p, name: e.target.value }))}
+                placeholder="Ex: Supino Reto"
+                className="bg-zinc-900 border-zinc-800 text-white focus-visible:ring-primary h-11"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit-sets" className="text-zinc-300">Séries *</Label>
+                <Input
+                  id="edit-sets"
+                  type="number"
+                  value={editForm.sets}
+                  onChange={e => setEditForm(p => ({ ...p, sets: e.target.value }))}
+                  placeholder="Ex: 4"
+                  className="bg-zinc-900 border-zinc-800 text-white focus-visible:ring-primary h-11"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-reps" className="text-zinc-300">Repetições *</Label>
+                <Input
+                  id="edit-reps"
+                  value={editForm.reps}
+                  onChange={e => setEditForm(p => ({ ...p, reps: e.target.value }))}
+                  placeholder="Ex: 10-12"
+                  className="bg-zinc-900 border-zinc-800 text-white focus-visible:ring-primary h-11"
+                />
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              onClick={handleSaveEdit}
+              disabled={isUpdating}
+              className="w-full sm:w-auto h-11 px-8 bg-primary hover:bg-primary/90 text-white font-medium"
+            >
+              {isUpdating ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
+              Salvar Alterações
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   )
 }
