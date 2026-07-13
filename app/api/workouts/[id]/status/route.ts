@@ -11,7 +11,10 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
 
     const resolvedParams = await params;
     const workoutId = resolvedParams.id;
-    const workoutLog = await WorkoutLogService.getTodayWorkoutLog(session.user.id, workoutId);
+    const url = new URL(req.url);
+    const date = url.searchParams.get('date');
+    
+    const workoutLog = await WorkoutLogService.getTodayWorkoutLog(session.user.id, workoutId, date);
 
     return NextResponse.json(workoutLog || null);
   } catch (error: any) {

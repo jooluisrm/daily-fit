@@ -8,8 +8,9 @@ export type WorkoutLog = {
 };
 
 export const WorkoutLogAPI = {
-  getTodayStatus: async (workoutId: string): Promise<WorkoutLog | null> => {
-    const response = await api.get(`/workouts/${workoutId}/status`);
+  getTodayStatus: async (workoutId: string, date?: string): Promise<WorkoutLog | null> => {
+    const url = date ? `/workouts/${workoutId}/status?date=${date}` : `/workouts/${workoutId}/status`;
+    const response = await api.get(url);
     return response.data;
   },
 

@@ -1,25 +1,48 @@
+"use client"
+
+import { useState } from "react"
 import { WelcomeCard } from "@/src/components/dashboard/welcome-card"
 import { WeekCalendar } from "@/src/components/dashboard/week-calendar"
 import { TodayWorkoutCard } from "@/src/components/dashboard/today-workout-card"
-import { WaterTrackerCard } from "@/src/components/dashboard/water-tracker-card"
-import { CaloriesCard } from "@/src/components/dashboard/calories-card"
+import { StatsCards } from "@/src/components/dashboard/stats-cards"
+import { WeeklyStreak } from "@/src/components/dashboard/weekly-streak"
+import { useDashboardStats } from "@/src/hooks/use-dashboard"
+
+import { WeightChart } from "@/src/components/dashboard/weight-chart"
+import { WaterTrackerCard } from "@/src/components/dashboard/water-tracker"
 
 export default function DashboardPage() {
+  const [selectedDate, setSelectedDate] = useState<Date>(() => {
+    const d = new Date()
+    d.setHours(0, 0, 0, 0)
+    return d
+  })
+
+  const { data: stats } = useDashboardStats()
+
   return (
     <div className="p-4 md:p-8 max-w-6xl mx-auto w-full pt-8 md:pt-8">
       <WelcomeCard />
-      <WeekCalendar />
-      
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        <div className="md:col-span-2 lg:col-span-1">
-          <TodayWorkoutCard />
+      <WeekCalendar selectedDate={selectedDate} onSelectDate={setSelectedDate} />
+
+      <div className="flex flex-col gap-6">
+        <StatsCards
+          totalWorkouts={stats?.totalWorkouts || 0}
+          totalVolume={stats?.totalVolume || 0}
+          totalCardioMinutes={stats?.totalCardioMinutes || 0}
+        />
+        <WeeklyStreak streak={stats?.streak || []} />
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="w-full">
+            <TodayWorkoutCard selectedDate={selectedDate} />
+          </div>
+          <div className="w-full">
+            <WaterTrackerCard />
+          </div>
         </div>
-        <div>
-          <WaterTrackerCard />
-        </div>
-        <div className="md:col-span-2 lg:col-span-1">
-          <CaloriesCard />
-        </div>
+
+        <WeightChart />
       </div>
     </div>
   )

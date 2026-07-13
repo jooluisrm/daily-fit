@@ -103,6 +103,39 @@ export class UserService {
       }
     });
 
+    // Se atualizou o peso, cria um registro de histórico para hoje
+    if (data.weight !== undefined) {
+      const targetDate = new Date();
+      targetDate.setHours(0, 0, 0, 0);
+      const endOfDay = new Date(targetDate);
+      endOfDay.setHours(23, 59, 59, 999);
+
+      const existingLog = await prisma.weightLog.findFirst({
+        where: {
+          userId,
+          date: {
+            gte: targetDate,
+            lte: endOfDay
+          }
+        }
+      });
+
+      if (existingLog) {
+        await prisma.weightLog.update({
+          where: { id: existingLog.id },
+          data: { weight: data.weight }
+        });
+      } else {
+        await prisma.weightLog.create({
+          data: {
+            userId,
+            weight: data.weight,
+            date: targetDate
+          }
+        });
+      }
+    }
+
     return updatedUser;
   }
 }

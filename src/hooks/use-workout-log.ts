@@ -1,10 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { WorkoutLogAPI } from '../services/api/workout-log.api';
 
-export const useTodayWorkoutStatus = (workoutId: string | undefined) => {
+export const useTodayWorkoutStatus = (workoutId: string | undefined, date?: string) => {
   return useQuery({
-    queryKey: ['workout-status', workoutId],
-    queryFn: () => WorkoutLogAPI.getTodayStatus(workoutId!),
+    queryKey: ['workout-status', workoutId, date],
+    queryFn: () => WorkoutLogAPI.getTodayStatus(workoutId!, date),
     enabled: !!workoutId,
   });
 };

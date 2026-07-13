@@ -44,13 +44,19 @@ export class WorkoutLogService {
   }
 
   /**
-   * Busca se o treino de hoje está finalizado
+   * Busca se o treino está finalizado em uma data específica (padrão: hoje)
    */
-  static async getTodayWorkoutLog(userId: string, workoutId: string) {
-    const startOfDay = new Date();
+  static async getTodayWorkoutLog(userId: string, workoutId: string, dateString?: string | null) {
+    const targetDate = dateString ? new Date(dateString) : new Date();
+    // Ajustar fuso horário para evitar problemas se dateString vier como UTC
+    if (dateString) {
+      targetDate.setMinutes(targetDate.getMinutes() + targetDate.getTimezoneOffset());
+    }
+
+    const startOfDay = new Date(targetDate);
     startOfDay.setHours(0, 0, 0, 0);
 
-    const endOfDay = new Date();
+    const endOfDay = new Date(targetDate);
     endOfDay.setHours(23, 59, 59, 999);
 
     return await prisma.workoutLog.findFirst({
