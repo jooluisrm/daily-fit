@@ -78,7 +78,83 @@ model User {
   
   accounts      Account[]
   sessions      Session[]
+  workouts      Workout[]
+  cardioLogs    CardioLog[]
+  workoutLogs   WorkoutLog[]
 
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
+}
+
+model Workout {
+  id          String   @id @default(cuid())
+  userId      String
+  name        String
+  daysOfWeek  String   // Armazena JSON com os dias da semana (ex: "[1,3,5]")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workoutExercises WorkoutExercise[]
+  workoutLogs      WorkoutLog[]
+}
+
+model Exercise {
+  id          String   @id @default(cuid())
+  name        String
+  imageUrl    String?
+  createdAt   DateTime @default(now())
+
+  workoutExercises WorkoutExercise[]
+}
+
+model WorkoutExercise {
+  id          String   @id @default(cuid())
+  workoutId   String
+  exerciseId  String
+  
+  sets        Int
+  reps        String
+  order       Int      @default(0)
+
+  workout     Workout  @relation(fields: [workoutId], references: [id], onDelete: Cascade)
+  exercise    Exercise @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+  logs        ExerciseLog[]
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model ExerciseLog {
+  id                String   @id @default(cuid())
+  workoutExerciseId String
+  
+  setNumber         Int      @default(1)
+  weight            Float
+  repsDone          Int
+  date              DateTime @default(now())
+
+  workoutExercise   WorkoutExercise @relation(fields: [workoutExerciseId], references: [id], onDelete: Cascade)
+}
+
+model CardioLog {
+  id          String   @id @default(cuid())
+  userId      String
+  workoutId   String?
+  
+  intensity   String   // "leve", "moderado", "intenso"
+  duration    Int      // em minutos
+  date        DateTime @default(now())
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model WorkoutLog {
+  id          String   @id @default(cuid())
+  userId      String
+  workoutId   String
+  date        DateTime @default(now())
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workout     Workout  @relation(fields: [workoutId], references: [id], onDelete: Cascade)
 }

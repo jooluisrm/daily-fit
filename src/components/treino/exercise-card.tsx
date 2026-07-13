@@ -1,56 +1,20 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import { useParams } from "next/navigation"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Dumbbell, ChevronDown, ChevronUp, Save, TrendingUp } from "lucide-react"
+import { Dumbbell, ChevronDown, ChevronUp, Save, TrendingUp, Loader2 } from "lucide-react"
 import Image from "next/image"
-import { CartesianGrid, Line, LineChart, XAxis, YAxis, ResponsiveContainer, Tooltip } from "recharts"
+import { CartesianGrid, Line, LineChart, XAxis, YAxis, Tooltip } from "recharts"
 import { ChartConfig, ChartContainer, ChartTooltipContent } from "@/components/ui/chart"
+import { useLogExercise } from "@/src/hooks/use-exercise"
+import { toast } from "sonner"
 
 interface ExerciseProps {
-  exercise: {
-    id: number
-    name: string
-    sets: number
-    reps: string
-    image: string
-  }
-}
-
-// Mock de dados para o gráfico (Histórico de treinos)
-const mockHistoryData: Record<number, any[]> = {
-  0: [ // Média (Average)
-    { date: "14/06", weight: 40 },
-    { date: "21/06", weight: 42 },
-    { date: "28/06", weight: 45 },
-    { date: "05/07", weight: 46 },
-  ],
-  1: [ // Série 1
-    { date: "14/06", weight: 40 },
-    { date: "21/06", weight: 45 },
-    { date: "28/06", weight: 50 },
-    { date: "05/07", weight: 50 },
-  ],
-  2: [ // Série 2
-    { date: "14/06", weight: 40 },
-    { date: "21/06", weight: 40 },
-    { date: "28/06", weight: 45 },
-    { date: "05/07", weight: 50 },
-  ],
-  3: [ // Série 3
-    { date: "14/06", weight: 40 },
-    { date: "21/06", weight: 40 },
-    { date: "28/06", weight: 40 },
-    { date: "05/07", weight: 45 },
-  ],
-  4: [ // Série 4
-    { date: "14/06", weight: 40 },
-    { date: "21/06", weight: 40 },
-    { date: "28/06", weight: 40 },
-    { date: "05/07", weight: 40 },
-  ],
+  workoutExercise: any
+  isCompleted?: boolean
 }
 
 const chartConfig = {
@@ -58,51 +22,129 @@ const chartConfig = {
     label: "Peso (kg)",
     color: "var(--primary)",
   },
+  repsDone: {
+    label: "Repetições",
+    color: "#a1a1aa",
+  }
 } satisfies ChartConfig
 
-export function ExerciseCard({ exercise }: ExerciseProps) {
+export function ExerciseCard({ workoutExercise, isCompleted }: ExerciseProps) {
+  const workoutId = workoutExercise.workoutId
+
   const [isExpanded, setIsExpanded] = useState(false)
   const [selectedSet, setSelectedSet] = useState<number>(0) // 0 = Média geral, 1 a N = Séries
   const [currentWeightInput, setCurrentWeightInput] = useState("")
+  const [currentRepsInput, setCurrentRepsInput] = useState("")
 
-  const chartData = mockHistoryData[selectedSet] || mockHistoryData[0]
-  
+  const { mutateAsync: logExercise, isPending: isSaving } = useLogExercise(workoutId)
+
+  // Extrair os dados reais do banco
+  const exerciseData = workoutExercise.exercise
+  const sets = workoutExercise.sets
+  const reps = workoutExercise.reps
+
   // Array para criar os botões das séries dinamicamente baseado no total de séries do exercício
-  const setsArray = Array.from({ length: exercise.sets }, (_, i) => i + 1)
+  const setsArray = Array.from({ length: sets }, (_, i) => i + 1)
+
+  // Montar o histórico agrupado a partir dos logs
+  const historyData: Record<number, any[]> = { 0: [] }
+  setsArray.forEach(setNum => { historyData[setNum] = [] })
+
+  if (workoutExercise.logs) {
+    const sortedLogs = [...workoutExercise.logs].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+    
+    sortedLogs.forEach((log: any) => {
+      const dateStr = new Date(log.date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
+      if (historyData[log.setNumber]) {
+        historyData[log.setNumber].push({ date: dateStr, weight: log.weight, repsDone: log.repsDone })
+      }
+    })
+
+    const logsByDate = sortedLogs.reduce((acc: any, log: any) => {
+      const dateStr = new Date(log.date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
+      if (!acc[dateStr]) acc[dateStr] = { totalWeight: 0, totalReps: 0, count: 0 }
+      acc[dateStr].totalWeight += log.weight
+      acc[dateStr].totalReps += log.repsDone
+      acc[dateStr].count += 1
+      return acc
+    }, {})
+
+    historyData[0] = Object.entries(logsByDate).map(([date, data]: any) => ({
+      date,
+      weight: Math.round((data.totalWeight / data.count) * 10) / 10,
+      repsDone: Math.round((data.totalReps / data.count) * 10) / 10
+    }))
+  }
+
+  const chartData = historyData[selectedSet] || []
   
-  // Pegar o último peso da série selecionada (se não for a média)
-  const lastWeight = selectedSet > 0 ? chartData[chartData.length - 1].weight : null
+  const todayStr = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
+  const logOfToday = chartData.find((log: any) => log.date === todayStr)
+
+  const lastLog = chartData.length > 0 ? chartData[chartData.length - 1] : null
+  const lastWeight = lastLog ? lastLog.weight : 0
+
+  useEffect(() => {
+    if (selectedSet > 0) {
+      if (logOfToday) {
+        setCurrentWeightInput(String(logOfToday.weight))
+        setCurrentRepsInput(String(logOfToday.repsDone))
+      } else {
+        setCurrentWeightInput("")
+        setCurrentRepsInput("")
+      }
+    }
+  }, [selectedSet, logOfToday?.weight, logOfToday?.repsDone])
+
+  const handleSave = async () => {
+    if (!currentWeightInput || !currentRepsInput || selectedSet === 0) return
+
+    try {
+      await logExercise({
+        workoutExerciseId: workoutExercise.id,
+        setNumber: selectedSet,
+        weight: Number(currentWeightInput),
+        repsDone: Number(currentRepsInput)
+      })
+      toast.success(logOfToday ? `Série ${selectedSet} atualizada!` : `Série ${selectedSet} salva com sucesso!`)
+    } catch (error) {
+      toast.error("Erro ao salvar série.")
+    }
+  }
 
   return (
     <Card className="bg-zinc-900 border-zinc-800 overflow-hidden hover:border-zinc-700 transition-colors">
       <CardContent className="p-0">
-        
+
         {/* Cabeçalho do Exercício (Sempre visível) */}
-        <div 
+        <div
           className="flex items-center cursor-pointer"
           onClick={() => setIsExpanded(!isExpanded)}
         >
-          <div className="relative w-24 h-24 sm:w-32 sm:h-32 flex-shrink-0 bg-zinc-800">
-            <Image 
-              src={exercise.image} 
-              alt={exercise.name}
-              fill
-              className="object-cover"
-            />
+          <div className="relative w-24 h-24 sm:w-32 sm:h-32 flex-shrink-0 bg-zinc-800 flex items-center justify-center overflow-hidden">
+            {exerciseData.imageUrl ? (
+              <img
+                src={exerciseData.imageUrl}
+                alt={exerciseData.name}
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <Dumbbell className="w-8 h-8 text-zinc-600" />
+            )}
           </div>
-          
+
           <div className="p-4 sm:p-6 flex-1 flex flex-col justify-center relative">
-            <h3 className="text-lg font-semibold text-white mb-2 pr-8">{exercise.name}</h3>
+            <h3 className="text-lg font-semibold text-white mb-2 pr-8 line-clamp-2">{exerciseData.name}</h3>
             <div className="flex items-center gap-4 text-sm text-zinc-400">
               <div className="flex items-center gap-1.5 bg-zinc-800/50 px-2.5 py-1 rounded-md">
                 <Dumbbell className="w-4 h-4 text-primary" />
-                <span className="font-medium text-zinc-300">{exercise.sets} séries</span>
+                <span className="font-medium text-zinc-300">{sets} séries</span>
               </div>
               <div className="flex items-center gap-1.5 bg-zinc-800/50 px-2.5 py-1 rounded-md">
-                <span className="font-medium text-zinc-300">{exercise.reps} reps</span>
+                <span className="font-medium text-zinc-300">{reps} reps</span>
               </div>
             </div>
-            
+
             {/* Ícone de Expansão */}
             <div className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-500">
               {isExpanded ? <ChevronUp className="w-6 h-6" /> : <ChevronDown className="w-6 h-6" />}
@@ -113,7 +155,7 @@ export function ExerciseCard({ exercise }: ExerciseProps) {
         {/* Área Expandida (Estatísticas e Inputs) */}
         {isExpanded && (
           <div className="border-t border-zinc-800 bg-zinc-950/50 p-4 sm:p-6 animate-in slide-in-from-top-2 duration-200">
-            
+
             {/* Título do Gráfico */}
             <div className="flex items-center gap-2 mb-4">
               <TrendingUp className="w-5 h-5 text-primary" />
@@ -124,33 +166,49 @@ export function ExerciseCard({ exercise }: ExerciseProps) {
 
             {/* Gráfico */}
             <div className="h-48 w-full mb-6">
-              <ChartContainer config={chartConfig} className="h-full w-full">
-                <LineChart data={chartData} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
-                  <XAxis dataKey="date" stroke="#a1a1aa" fontSize={12} tickLine={false} axisLine={false} />
-                  <YAxis stroke="#a1a1aa" fontSize={12} tickLine={false} axisLine={false} />
-                  <Tooltip content={<ChartTooltipContent />} />
-                  <Line 
-                    type="monotone" 
-                    dataKey="weight" 
-                    stroke="var(--primary)" 
-                    strokeWidth={3}
-                    dot={{ fill: "var(--primary)", r: 4 }}
-                    activeDot={{ r: 6 }} 
-                  />
-                </LineChart>
-              </ChartContainer>
+              {chartData.length > 0 ? (
+                <ChartContainer config={chartConfig} className="h-full w-full">
+                  <LineChart data={chartData} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
+                    <XAxis dataKey="date" stroke="#a1a1aa" fontSize={12} tickLine={false} axisLine={false} />
+                    <YAxis yAxisId="left" stroke="#a1a1aa" fontSize={12} tickLine={false} axisLine={false} />
+                    <YAxis yAxisId="right" orientation="right" stroke="#a1a1aa" fontSize={12} tickLine={false} axisLine={false} />
+                    <Tooltip content={<ChartTooltipContent />} />
+                    <Line
+                      yAxisId="left"
+                      type="monotone"
+                      dataKey="weight"
+                      stroke="var(--primary)"
+                      strokeWidth={3}
+                      dot={{ fill: "var(--primary)", r: 4 }}
+                      activeDot={{ r: 6 }}
+                    />
+                    <Line
+                      yAxisId="right"
+                      type="monotone"
+                      dataKey="repsDone"
+                      stroke="#8b5cf6"
+                      strokeWidth={2}
+                      strokeDasharray="4 4"
+                      dot={{ fill: "#8b5cf6", r: 3 }}
+                    />
+                  </LineChart>
+                </ChartContainer>
+              ) : (
+                <div className="h-full w-full flex items-center justify-center text-zinc-500 text-sm bg-zinc-900/30 rounded-lg border border-zinc-800/50 border-dashed">
+                  Nenhum dado registrado para esta série ainda.
+                </div>
+              )}
             </div>
 
             {/* Abas das Séries */}
             <div className="flex w-full bg-zinc-900 p-1 rounded-xl mb-6 overflow-x-auto hide-scrollbar border border-zinc-800">
               <button
                 onClick={() => setSelectedSet(0)}
-                className={`flex-1 min-w-[80px] py-2.5 px-3 text-sm font-semibold rounded-lg transition-all whitespace-nowrap ${
-                  selectedSet === 0 
-                    ? "bg-primary text-primary-foreground shadow-md" 
-                    : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50"
-                }`}
+                className={`flex-1 min-w-[80px] py-2.5 px-3 text-sm font-semibold rounded-lg transition-all whitespace-nowrap ${selectedSet === 0
+                  ? "bg-primary text-primary-foreground shadow-md"
+                  : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50"
+                  }`}
               >
                 Média
               </button>
@@ -158,11 +216,10 @@ export function ExerciseCard({ exercise }: ExerciseProps) {
                 <button
                   key={setNum}
                   onClick={() => setSelectedSet(setNum)}
-                  className={`flex-1 min-w-[80px] py-2.5 px-3 text-sm font-semibold rounded-lg transition-all whitespace-nowrap ${
-                    selectedSet === setNum 
-                      ? "bg-primary text-primary-foreground shadow-md" 
-                      : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50"
-                  }`}
+                  className={`flex-1 min-w-[80px] py-2.5 px-3 text-sm font-semibold rounded-lg transition-all whitespace-nowrap ${selectedSet === setNum
+                    ? "bg-primary text-primary-foreground shadow-md"
+                    : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50"
+                    }`}
                 >
                   Série {setNum}
                 </button>
@@ -174,37 +231,56 @@ export function ExerciseCard({ exercise }: ExerciseProps) {
               <div className="bg-zinc-900 rounded-lg p-4 border border-zinc-800">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                   <div>
-                    <p className="text-sm text-zinc-400 mb-1">Último peso usado nesta série:</p>
-                    <p className="text-xl font-bold text-white">{lastWeight} kg</p>
+                    <p className="text-sm text-zinc-400 mb-1">Último peso nesta série:</p>
+                    <p className="text-xl font-bold text-white">{lastWeight ? `${lastWeight} kg` : "-"}</p>
+                    {lastLog && (
+                      <p className="text-xs text-zinc-500 mt-1">{lastLog.repsDone} reps</p>
+                    )}
                   </div>
-                  
-                  <div className="flex items-end gap-2 w-full sm:w-auto">
-                    <div className="space-y-1 flex-1 sm:w-32">
+
+                  <div className="flex items-end gap-2 w-full sm:w-auto flex-wrap">
+                    <div className="space-y-1 flex-1 min-w-[80px]">
                       <label className="text-xs text-zinc-400">Peso hoje (kg)</label>
-                      <Input 
-                        type="number" 
-                        placeholder="Ex: 50" 
+                      <Input
+                        type="number"
+                        placeholder={lastWeight ? String(lastWeight) : "0"}
                         value={currentWeightInput}
                         onChange={(e) => setCurrentWeightInput(e.target.value)}
-                        className="bg-zinc-800 border-zinc-700 text-white focus-visible:ring-primary h-10"
+                        disabled={isCompleted}
+                        className="bg-zinc-800 border-zinc-700 text-white focus-visible:ring-primary h-10 disabled:opacity-50"
                       />
                     </div>
-                    <Button className="h-10 px-4" disabled={!currentWeightInput}>
-                      <Save className="w-4 h-4 mr-2" />
-                      Salvar
+                    <div className="space-y-1 flex-1 min-w-[80px]">
+                      <label className="text-xs text-zinc-400">Reps feitas</label>
+                      <Input
+                        type="number"
+                        placeholder="Ex: 10"
+                        value={currentRepsInput}
+                        onChange={(e) => setCurrentRepsInput(e.target.value)}
+                        disabled={isCompleted}
+                        className="bg-zinc-800 border-zinc-700 text-white focus-visible:ring-primary h-10 disabled:opacity-50"
+                      />
+                    </div>
+                    <Button 
+                      onClick={handleSave}
+                      className="h-10 px-4 bg-primary hover:bg-primary/90 text-white w-full sm:w-auto disabled:opacity-50" 
+                      disabled={!currentWeightInput || !currentRepsInput || isSaving || isCompleted}
+                    >
+                      {isSaving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
+                      {isSaving ? "Salvando..." : (logOfToday ? "Atualizar" : "Salvar")}
                     </Button>
                   </div>
                 </div>
               </div>
             )}
-            
+
             {/* Dica para selecionar série */}
             {selectedSet === 0 && (
               <p className="text-sm text-zinc-500 text-center py-4 bg-zinc-900 rounded-lg border border-zinc-800/50">
-                Selecione uma série acima para registrar o peso do treino de hoje.
+                Selecione uma série acima para registrar o peso e reps do treino de hoje.
               </p>
             )}
-            
+
           </div>
         )}
       </CardContent>
