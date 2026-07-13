@@ -1,12 +1,12 @@
 import { PrismaClient } from '../generated/prisma/client'
-import { PrismaMariaDb } from '@prisma/adapter-mariadb'
-import * as mariadb from 'mariadb'
+import { neonConfig } from '@neondatabase/serverless'
+import { PrismaNeon } from '@prisma/adapter-neon'
+import ws from 'ws'
+
+neonConfig.webSocketConstructor = ws
 
 const prismaClientSingleton = () => {
-  // Inicializando o adaptador do MariaDB (que se conecta ao MySQL perfeitamente)
-  // O adaptador recebe a string de conexão diretamente
-  const adapter = new PrismaMariaDb(process.env.DATABASE_URL!);
-  
+  const adapter = new PrismaNeon({ connectionString: process.env.DATABASE_URL })
   return new PrismaClient({ adapter })
 }
 
