@@ -3,8 +3,14 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
 export async function middleware(req: NextRequest) {
-  // Pega o token da sessão verificando os cookies do NextAuth
-  const token = await getToken({ req, secret: process.env.AUTH_SECRET });
+  // Configuração explícita para o Vercel (HTTPS) encontrar o cookie correto
+  const useSecureCookies = process.env.NODE_ENV === 'production';
+  const token = await getToken({
+    req,
+    secret: process.env.AUTH_SECRET,
+    secureCookie: useSecureCookies,
+    salt: useSecureCookies ? '__Secure-authjs.session-token' : 'authjs.session-token'
+  });
   
   const isAuth = !!token;
   const isProfileComplete = token?.isProfileComplete as boolean | undefined;
