@@ -50,5 +50,10 @@ export const ExerciseAPI = {
   logExercise: async (workoutExerciseId: string, data: { setNumber: number; weight: number; repsDone: number }): Promise<ExerciseLog> => {
     const response = await api.post(`/workouts/exercises/${workoutExerciseId}/log`, data);
     return response.data;
+  },
+
+  reorderWorkoutExercises: async (workoutId: string, orderedExerciseIds: string[]): Promise<{ success: boolean }> => {
+    const response = await api.put(`/workouts/${workoutId}/exercises/reorder`, { orderedExerciseIds });
+    return response.data;
   }
 };

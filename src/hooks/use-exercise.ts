@@ -53,3 +53,15 @@ export const useUpdateWorkoutExercise = (workoutId: string) => {
     },
   });
 };
+
+export const useReorderWorkoutExercises = (workoutId: string) => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (orderedExerciseIds: string[]) => 
+      ExerciseAPI.reorderWorkoutExercises(workoutId, orderedExerciseIds),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['workout-exercises', workoutId] });
+    },
+  });
+};

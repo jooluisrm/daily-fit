@@ -215,4 +215,28 @@ export class ExerciseService {
 
     return updatedWorkoutExercise;
   }
+
+  /**
+   * Reordena os exercícios de um treino em lote
+   */
+  static async reorderWorkoutExercises(workoutId: string, userId: string, orderedExerciseIds: string[]) {
+    const workout = await prisma.workout.findUnique({
+      where: { id: workoutId }
+    });
+
+    if (!workout || workout.userId !== userId) {
+      throw new Error('Treino não encontrado ou não autorizado.');
+    }
+
+    const updatePromises = orderedExerciseIds.map((id, index) => 
+      prisma.workoutExercise.update({
+        where: { id },
+        data: { order: index }
+      })
+    );
+
+    await prisma.$transaction(updatePromises);
+    
+    return true;
+  }
 }

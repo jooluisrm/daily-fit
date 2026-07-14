@@ -46,7 +46,7 @@ export function Sidebar() {
 
       <div className="mt-auto border-t border-zinc-800 pt-4">
         <div className="flex items-center gap-3 px-2 mb-4">
-          <div className="w-10 h-10 rounded-full bg-zinc-800 flex items-center justify-center text-primary font-bold uppercase overflow-hidden relative">
+          <div className="w-10 h-10 shrink-0 rounded-full bg-zinc-800 flex items-center justify-center text-primary font-bold uppercase overflow-hidden relative">
             {session?.user?.image ? (
               <img src={session.user.image} alt="Avatar" className="w-full h-full object-cover" />
             ) : (

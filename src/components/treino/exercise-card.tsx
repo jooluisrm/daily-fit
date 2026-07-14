@@ -57,7 +57,7 @@ export function ExerciseCard({ workoutExercise, isCompleted }: ExerciseProps) {
 
   if (workoutExercise.logs) {
     const sortedLogs = [...workoutExercise.logs].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
-    
+
     sortedLogs.forEach((log: any) => {
       const dateStr = new Date(log.date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
       if (historyData[log.setNumber]) {
@@ -82,7 +82,7 @@ export function ExerciseCard({ workoutExercise, isCompleted }: ExerciseProps) {
   }
 
   const chartData = historyData[selectedSet] || []
-  
+
   const todayStr = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
   const logOfToday = chartData.find((log: any) => log.date === todayStr)
 
@@ -184,45 +184,49 @@ export function ExerciseCard({ workoutExercise, isCompleted }: ExerciseProps) {
   }
 
   return (
-    <Card className={`bg-zinc-900 border-zinc-800 overflow-hidden hover:border-zinc-700 transition-colors ${!workoutExercise.isActive ? 'opacity-50 grayscale' : ''}`}>
-      <CardContent className="p-0">
+    <Card className={`p-0 bg-zinc-900 border-zinc-800 overflow-hidden hover:border-zinc-700 transition-colors ${!workoutExercise.isActive ? 'opacity-50 grayscale' : ''}`}>
+      <CardContent className="p-0 border-0">
 
         {/* Cabeçalho do Exercício (Sempre visível) */}
         <div
-          className="flex items-center cursor-pointer"
+          className="relative flex items-center cursor-pointer min-h-[150px] sm:min-h-[160px] overflow-hidden"
           onClick={() => setIsExpanded(!isExpanded)}
         >
-          <div className="relative w-24 h-24 sm:w-32 sm:h-32 flex-shrink-0 bg-zinc-800 flex items-center justify-center overflow-hidden">
-            {exerciseData.imageUrl ? (
+          {/* Background Image com Overlay */}
+          {exerciseData.imageUrl ? (
+            <>
               <img
                 src={exerciseData.imageUrl}
                 alt={exerciseData.name}
-                className="w-full h-full object-cover"
+                className="absolute inset-0 w-full h-full object-cover object-center opacity-60 mix-blend-luminosity"
               />
-            ) : (
-              <Dumbbell className="w-8 h-8 text-zinc-600" />
-            )}
-          </div>
+              <div className="absolute inset-0 bg-gradient-to-r from-zinc-950 via-zinc-950/80 to-zinc-950/40" />
+            </>
+          ) : (
+            <div className="absolute inset-0 bg-zinc-900 flex items-center justify-end pr-10 opacity-20">
+              <Dumbbell className="w-24 h-24 text-zinc-800" />
+            </div>
+          )}
 
-          <div className="p-4 sm:p-6 flex-1 flex flex-col justify-center relative">
-            <h3 className="text-lg font-semibold text-white mb-2 pr-8 line-clamp-2">{exerciseData.name}</h3>
-            <div className="flex items-center gap-4 text-sm text-zinc-400">
-              <div className="flex items-center gap-1.5 bg-zinc-800/50 px-2.5 py-1 rounded-md">
+          <div className="p-4 sm:p-6 flex-1 flex flex-col justify-center relative z-10 w-full">
+            <h3 className="text-lg font-bold text-white mb-3 pr-8 line-clamp-2 drop-shadow-lg">{exerciseData.name}</h3>
+            <div className="flex items-center gap-3 text-sm">
+              <div className="flex items-center gap-1.5 bg-zinc-950/60 backdrop-blur-md border border-zinc-800/80 shadow-sm px-3 py-1.5 rounded-lg">
                 <Dumbbell className="w-4 h-4 text-primary" />
-                <span className="font-medium text-zinc-300">{sets} séries</span>
+                <span className="font-semibold text-zinc-200">{sets} séries</span>
               </div>
-              <div className="flex items-center gap-1.5 bg-zinc-800/50 px-2.5 py-1 rounded-md">
-                <span className="font-medium text-zinc-300">{reps} reps</span>
+              <div className="flex items-center gap-1.5 bg-zinc-950/60 backdrop-blur-md border border-zinc-800/80 shadow-sm px-3 py-1.5 rounded-lg">
+                <span className="font-semibold text-zinc-200">{reps} reps</span>
               </div>
             </div>
 
             {/* Ícone de Expansão */}
-            <div className="absolute right-12 sm:right-16 top-1/2 -translate-y-1/2 text-zinc-500">
-              {isExpanded ? <ChevronUp className="w-6 h-6" /> : <ChevronDown className="w-6 h-6" />}
+            <div className="absolute right-12 sm:right-16 top-1/2 -translate-y-1/2 text-zinc-300">
+              {isExpanded ? <ChevronUp className="w-6 h-6 drop-shadow-lg" /> : <ChevronDown className="w-6 h-6 drop-shadow-lg" />}
             </div>
 
             {/* Menu de Ações */}
-            <div className="absolute right-2 sm:right-4 top-1/2 -translate-y-1/2">
+            <div className="absolute right-2 sm:right-4 top-1/2 -translate-y-1/2 z-20">
               <DropdownMenu>
                 <DropdownMenuTrigger render={
                   <Button variant="ghost" size="icon" className="text-zinc-400 hover:text-white" onClick={(e) => e.stopPropagation()}>
@@ -266,13 +270,13 @@ export function ExerciseCard({ workoutExercise, isCompleted }: ExerciseProps) {
                 </h4>
               </div>
               <div className="flex gap-1 bg-zinc-900 p-1 rounded-full border border-zinc-800">
-                <button 
+                <button
                   onClick={() => scrollToView('list')}
                   className={`w-6 h-6 rounded-full flex items-center justify-center transition-colors ${activeView === 'list' ? 'bg-primary text-primary-foreground' : 'text-zinc-500 hover:text-zinc-300'}`}
                 >
                   <List className="w-3.5 h-3.5" />
                 </button>
-                <button 
+                <button
                   onClick={() => scrollToView('chart')}
                   className={`w-6 h-6 rounded-full flex items-center justify-center transition-colors ${activeView === 'chart' ? 'bg-primary text-primary-foreground' : 'text-zinc-500 hover:text-zinc-300'}`}
                 >
@@ -283,7 +287,7 @@ export function ExerciseCard({ workoutExercise, isCompleted }: ExerciseProps) {
 
             {/* Container Swipeable */}
             <div className="mb-6 relative">
-              <div 
+              <div
                 ref={scrollContainerRef}
                 onScroll={handleScroll}
                 className="flex w-full snap-x snap-mandatory overflow-x-auto hide-scrollbar"
@@ -417,9 +421,9 @@ export function ExerciseCard({ workoutExercise, isCompleted }: ExerciseProps) {
                         className="bg-zinc-800 border-zinc-700 text-white focus-visible:ring-primary h-10 disabled:opacity-50"
                       />
                     </div>
-                    <Button 
+                    <Button
                       onClick={handleSave}
-                      className="h-10 px-4 bg-primary hover:bg-primary/90 text-white w-full sm:w-auto disabled:opacity-50" 
+                      className="h-10 px-4 bg-primary hover:bg-primary/90 text-white w-full sm:w-auto disabled:opacity-50"
                       disabled={!currentWeightInput || !currentRepsInput || isSaving || isCompleted}
                     >
                       {isSaving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
