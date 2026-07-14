@@ -16,7 +16,7 @@ export function TodayWorkoutCard() {
   const todayWorkout = workouts?.find(w => w.isActive && w.daysOfWeek.includes(selectedDayIndex))
   const { data: exercises } = useWorkoutExercises(todayWorkout?.id || "")
 
-  const dateString = today.toISOString()
+  const dateString = today.toISOString().split('T')[0]
   const { data: workoutLog } = useTodayWorkoutStatus(todayWorkout?.id, dateString)
 
   const isCompleted = !!workoutLog
