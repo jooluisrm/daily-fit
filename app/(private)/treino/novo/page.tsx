@@ -33,8 +33,8 @@ export default function NovoTreinoPage() {
 
   const toggleDay = (dayId: number) => {
     if (disabledDays.includes(dayId)) return;
-    setSelectedDays(prev => 
-      prev.includes(dayId) 
+    setSelectedDays(prev =>
+      prev.includes(dayId)
         ? prev.filter(d => d !== dayId)
         : [...prev, dayId]
     )
@@ -56,26 +56,32 @@ export default function NovoTreinoPage() {
   }
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6">
-      <div className="flex items-center gap-4">
-        <Button 
-          variant="ghost" 
-          size="icon" 
-          onClick={() => router.push("/treino")}
-          className="text-zinc-400 hover:text-white"
-        >
-          <ArrowLeft className="w-5 h-5" />
-        </Button>
-        <div>
-          <h1 className="text-2xl font-bold text-white">Novo Treino</h1>
-          <p className="text-zinc-400">Configure as informações base da sua nova rotina.</p>
+    <div className="p-4 md:p-8 max-w-4xl mx-auto w-full pt-8 md:pt-8 animate-in fade-in duration-300">
+      
+      {/* Header com estilo premium */}
+      <div className="mb-8 sm:mb-12 bg-zinc-900/40 p-5 sm:p-8 rounded-2xl border border-zinc-800/50 flex justify-between items-center gap-6 shadow-sm relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3 pointer-events-none" />
+        
+        <div className="flex items-center gap-4 relative z-10">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => router.push("/treino?tab=list")}
+            className="text-zinc-400 hover:text-white rounded-full bg-zinc-800/50 hover:bg-zinc-800 transition-colors"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </Button>
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">Novo Treino</h1>
+            <p className="text-sm text-zinc-400 mt-1">Configure as informações base da sua nova rotina.</p>
+          </div>
         </div>
       </div>
 
       <Card className="bg-zinc-900 border-zinc-800 p-6 space-y-8">
         <div className="space-y-3">
           <Label htmlFor="name" className="text-zinc-300 font-medium">Nome do Treino</Label>
-          <Input 
+          <Input
             id="name"
             value={name}
             onChange={(e) => setName(e.target.value)}
@@ -90,20 +96,19 @@ export default function NovoTreinoPage() {
             {DAYS_OF_WEEK.map((day) => {
               const isSelected = selectedDays.includes(day.id)
               const isDisabled = disabledDays.includes(day.id)
-              
+
               return (
                 <button
                   key={day.id}
                   onClick={() => toggleDay(day.id)}
                   disabled={isDisabled}
                   title={isDisabled ? "Você já possui um treino neste dia" : ""}
-                  className={`px-4 py-2 rounded-lg font-medium text-sm transition-all border ${
-                    isSelected 
-                      ? "bg-primary text-white border-primary shadow-lg shadow-primary/20" 
+                  className={`px-4 py-2 rounded-lg font-medium text-sm transition-all border ${isSelected
+                      ? "bg-primary text-white border-primary shadow-lg shadow-primary/20"
                       : isDisabled
                         ? "bg-zinc-900/50 text-zinc-600 border-zinc-800/50 cursor-not-allowed"
                         : "bg-zinc-950 text-zinc-400 border-zinc-800 hover:text-white hover:border-zinc-700 hover:bg-zinc-800"
-                  }`}
+                    }`}
                 >
                   {day.label}
                 </button>
@@ -114,15 +119,15 @@ export default function NovoTreinoPage() {
         </div>
 
         <div className="flex justify-end gap-3 pt-4 border-t border-zinc-800">
-          <Button 
-            variant="ghost" 
+          <Button
+            variant="ghost"
             onClick={() => router.push("/treino")}
             disabled={isPending}
             className="text-zinc-400 hover:text-white"
           >
             Cancelar
           </Button>
-          <Button 
+          <Button
             onClick={handleCreate}
             disabled={isPending || !name.trim()}
             className="bg-primary hover:bg-primary/90 text-white font-medium"

@@ -21,5 +21,10 @@ export const WaterAPI = {
   updateSettings: async (data: { goal: number, quickAdds: number[] }): Promise<any> => {
     const response = await api.put('/water/settings', data);
     return response.data;
+  },
+
+  autoCalculateGoal: async (): Promise<{ success: boolean, suggestedGoal: number, details: any }> => {
+    const response = await api.get('/water/auto-calculate');
+    return response.data;
   }
 };

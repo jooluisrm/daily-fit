@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Droplet, Settings, Plus, CheckCircle2 } from "lucide-react"
+import { Droplet, Settings, Plus, CheckCircle2, Sparkles } from "lucide-react"
 import { useWaterData, useAddWater, useUpdateWaterSettings } from "@/src/hooks/use-water"
 import { toast } from "sonner"
 
@@ -16,7 +16,6 @@ export function WaterTrackerCard() {
   const { mutate: updateSettings, isPending: isUpdating } = useUpdateWaterSettings()
 
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
-  const [goalInput, setGoalInput] = useState("")
   const [quickAddsInput, setQuickAddsInput] = useState("")
 
   const total = data?.totalConsumed || 0
@@ -34,18 +33,11 @@ export function WaterTrackerCard() {
   }
 
   const handleOpenSettings = () => {
-    setGoalInput(goal.toString())
     setQuickAddsInput(quickAdds.join(", "))
     setIsSettingsOpen(true)
   }
 
   const handleSaveSettings = () => {
-    const newGoal = parseInt(goalInput)
-    if (isNaN(newGoal) || newGoal < 500) {
-      toast.error("A meta deve ser de pelo menos 500ml")
-      return
-    }
-
     const newQuickAdds = quickAddsInput
       .split(",")
       .map(s => parseInt(s.trim()))
@@ -56,7 +48,7 @@ export function WaterTrackerCard() {
       return
     }
 
-    updateSettings({ goal: newGoal, quickAdds: newQuickAdds }, {
+    updateSettings({ goal, quickAdds: newQuickAdds }, {
       onSuccess: () => {
         toast.success("Configurações atualizadas!")
         setIsSettingsOpen(false)
@@ -95,6 +87,12 @@ export function WaterTrackerCard() {
                 <span className={`text-xs ${isCompleted ? 'text-emerald-500/70 font-medium' : 'text-zinc-400'}`}>{isCompleted ? 'Sucesso!' : `/ ${goal} ml`}</span>
               </div>
             </div>
+            
+            <div className="mt-4 flex items-center justify-center gap-1.5 text-xs text-blue-400 bg-blue-500/10 px-2 py-1 rounded-md">
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>Meta Inteligente</span>
+            </div>
+
             {isCompleted && (
               <p className="text-sm text-zinc-400 mt-4 text-center">
                 Você bebeu <span className="text-white font-medium">{total}ml</span>.
@@ -122,22 +120,12 @@ export function WaterTrackerCard() {
       <Dialog open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
         <DialogContent className="bg-zinc-900 border-zinc-800 text-white sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Configurar Meta de Água</DialogTitle>
+            <DialogTitle>Configurar Água</DialogTitle>
             <DialogDescription className="text-zinc-400">
-              Ajuste sua meta diária e os botões de atalho rápido.
+              Sua meta diária ({goal}ml) é calculada dinamicamente pelo app baseada no seu peso e treinos. Aqui você pode ajustar seus botões rápidos.
             </DialogDescription>
           </DialogHeader>
           <div className="py-4 space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="goal" className="text-zinc-300">Meta Diária (ml)</Label>
-              <Input
-                id="goal"
-                type="number"
-                value={goalInput}
-                onChange={(e) => setGoalInput(e.target.value)}
-                className="bg-zinc-800 border-zinc-700 text-white"
-              />
-            </div>
             <div className="space-y-2">
               <Label htmlFor="quickAdds" className="text-zinc-300">Botões Rápidos (separados por vírgula)</Label>
               <Input

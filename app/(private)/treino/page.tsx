@@ -4,11 +4,22 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { TreinoToday } from "@/src/components/treino/treino-today"
 import { TreinoList } from "@/src/components/treino/treino-list"
 import { Activity, ListChecks } from "lucide-react"
+import { useSearchParams, useRouter, usePathname } from "next/navigation"
+import { Suspense } from "react"
 
-export default function TreinoPage() {
+function TreinoTabsContent() {
+  const searchParams = useSearchParams()
+  const router = useRouter()
+  const pathname = usePathname()
+
+  const currentTab = searchParams.get("tab") === "list" || searchParams.has("gerenciar") ? "list" : "today"
+
+  const handleTabChange = (value: string) => {
+    router.replace(`${pathname}?tab=${value}`)
+  }
+
   return (
-    <div className="p-4 md:p-8 max-w-4xl mx-auto w-full pt-8 md:pt-8">
-      <Tabs defaultValue="today" className="w-full">
+    <Tabs value={currentTab} onValueChange={handleTabChange} className="w-full">
         {/* Customizando o TabsList com as classes corretas do novo Shadcn/Base-UI */}
         <TabsList className="flex w-full h-auto bg-zinc-900 border border-zinc-800 rounded-xl mb-8 p-1.5">
           <TabsTrigger 
@@ -35,6 +46,15 @@ export default function TreinoPage() {
           <TreinoList />
         </TabsContent>
       </Tabs>
+  )
+}
+
+export default function TreinoPage() {
+  return (
+    <div className="p-4 md:p-8 max-w-4xl mx-auto w-full pt-8 md:pt-8">
+      <Suspense fallback={<div className="animate-pulse h-10 bg-zinc-900 rounded-xl w-full mb-8"></div>}>
+        <TreinoTabsContent />
+      </Suspense>
     </div>
   )
 }

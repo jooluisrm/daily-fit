@@ -15,6 +15,11 @@ export const CardioAPI = {
     return response.data;
   },
 
+  getCardioLogs: async (): Promise<CardioLog[]> => {
+    const response = await api.get('/cardio/logs');
+    return response.data;
+  },
+
   logCardio: async (data: { intensity: string; duration: number; workoutId?: string }): Promise<CardioLog | null> => {
     const response = await api.post('/cardio', data);
     return response.data;

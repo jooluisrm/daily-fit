@@ -16,6 +16,12 @@ export async function GET(req: Request) {
     targetDate.setDate(targetDate.getDate() - days + 1);
     targetDate.setHours(0, 0, 0, 0);
 
+    // 0. Treinos Ativos
+    const activeWorkouts = await prisma.workout.findMany({
+      where: { userId, isActive: true },
+      select: { id: true, name: true, daysOfWeek: true }
+    });
+
     // 1. Frequência de Treinos (WorkoutLogs)
     const workoutLogs = await prisma.workoutLog.findMany({
       where: {
@@ -43,7 +49,12 @@ export async function GET(req: Request) {
       },
       select: {
         weight: true,
-        repsDone: true
+        repsDone: true,
+        workoutExercise: {
+          select: {
+            workoutId: true
+          }
+        }
       }
     });
 
@@ -65,6 +76,13 @@ export async function GET(req: Request) {
     const totalVolume = exerciseLogs.reduce((acc, log) => acc + (log.weight * log.repsDone), 0);
     const totalCardioMinutes = cardioLogs.reduce((acc, log) => acc + log.duration, 0);
 
+    const volumeByWorkout: Record<string, number> = {};
+    exerciseLogs.forEach(log => {
+      const vol = log.weight * log.repsDone;
+      const wId = log.workoutExercise.workoutId;
+      volumeByWorkout[wId] = (volumeByWorkout[wId] || 0) + vol;
+    });
+
     // Processar Streak (Semana Atual - Domingo a Sábado)
     const streak = [];
     const logDates = new Set(workoutLogs.map(log => log.date.toISOString().split('T')[0]));
@@ -83,13 +101,20 @@ export async function GET(req: Request) {
       
       const isFuture = d > today;
       const isTodayDate = d.getTime() === today.getTime();
+      const completed = logDates.has(dateStr);
+      
+      const dayIndex = d.getDay();
+      const isRestDay = !activeWorkouts.some(w => w.daysOfWeek.includes(String(dayIndex)));
+      const missedWorkout = !isFuture && !completed && !isRestDay;
       
       streak.push({
         date: dateStr,
         dayName: ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'][i],
-        completed: logDates.has(dateStr),
+        completed,
         isToday: isTodayDate,
-        isFuture
+        isFuture,
+        isRestDay,
+        missedWorkout
       });
     }
 
@@ -97,7 +122,9 @@ export async function GET(req: Request) {
       totalWorkouts,
       totalVolume,
       totalCardioMinutes,
-      streak
+      streak,
+      volumeByWorkout,
+      activeWorkouts: activeWorkouts.map(w => ({ id: w.id, name: w.name }))
     });
   } catch (error: any) {
     console.error('Erro ao buscar estatísticas do dashboard:', error);

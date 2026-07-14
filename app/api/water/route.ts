@@ -28,11 +28,46 @@ export async function GET() {
     // Calcular o total consumido hoje
     const totalConsumed = logs.reduce((acc, log) => acc + log.amount, 0);
 
-    // Buscar a meta de água do usuário
+    // Buscar dados do usuário para o cálculo inteligente
     const user = await prisma.user.findUnique({
       where: { id: session.user.id },
-      select: { waterGoal: true, waterQuickAdds: true }
+      select: { waterGoal: true, waterQuickAdds: true, weight: true, age: true }
     });
+
+    const latestWeightLog = await prisma.weightLog.findFirst({
+      where: { userId: session.user.id },
+      orderBy: { date: 'desc' }
+    });
+
+    // --- CÁLCULO INTELIGENTE DA META DE ÁGUA ---
+    let dynamicGoal = user?.waterGoal || 2000;
+    const currentWeight = latestWeightLog?.weight || user?.weight;
+    
+    if (currentWeight) {
+      const age = user?.age || 30;
+      let multiplier = 35;
+      if (age < 18) multiplier = 40;
+      else if (age >= 55 && age <= 65) multiplier = 30;
+      else if (age > 65) multiplier = 25;
+
+      const baseGoal = currentWeight * multiplier;
+
+      // Buscar cardio e treinos de hoje
+      const cardioLogs = await prisma.cardioLog.findMany({
+        where: { userId: session.user.id, date: { gte: today, lte: endOfDay } }
+      });
+      const totalCardioMinutes = cardioLogs.reduce((acc, log) => acc + log.duration, 0);
+
+      const workoutLogs = await prisma.workoutLog.findMany({
+        where: { userId: session.user.id, date: { gte: today, lte: endOfDay } }
+      });
+      const totalWorkoutMinutes = workoutLogs.length * 60; // Assume 60 min por treino
+      const totalActiveMinutes = totalCardioMinutes + totalWorkoutMinutes;
+      
+      const extraGoal = (totalActiveMinutes / 60) * 500;
+      dynamicGoal = Math.round((baseGoal + extraGoal) / 100) * 100;
+    }
+    // -------------------------------------------
 
     let quickAdds = [250, 500];
     if (user?.waterQuickAdds) {
@@ -45,7 +80,7 @@ export async function GET() {
 
     return NextResponse.json({
       totalConsumed,
-      goal: user?.waterGoal || 2000,
+      goal: dynamicGoal,
       quickAdds,
       logs // opcionalmente retornar os logs caso queira mostrar o histórico no futuro
     });

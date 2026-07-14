@@ -8,6 +8,13 @@ export const useTodayCardio = () => {
   });
 };
 
+export const useCardioLogs = () => {
+  return useQuery({
+    queryKey: ['cardio-logs'],
+    queryFn: () => CardioAPI.getCardioLogs(),
+  });
+};
+
 export const useLogCardio = () => {
   const queryClient = useQueryClient();
 
@@ -16,6 +23,7 @@ export const useLogCardio = () => {
       CardioAPI.logCardio(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['today-cardio'] });
+      queryClient.invalidateQueries({ queryKey: ['cardio-logs'] });
     },
   });
 };

@@ -10,6 +10,13 @@ export type DashboardStats = {
     completed: boolean;
     isToday: boolean;
     isFuture: boolean;
+    isRestDay: boolean;
+    missedWorkout: boolean;
+  }[];
+  volumeByWorkout: Record<string, number>;
+  activeWorkouts: {
+    id: string;
+    name: string;
   }[];
 };
 

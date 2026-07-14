@@ -66,7 +66,7 @@ export function TodayWorkoutCard({ selectedDate }: { selectedDate: Date }) {
             </div>
           </div>
         )}
-        <Link href={todayWorkout ? `/treino/${todayWorkout.id}` : "/treino"} className="block mt-auto">
+        <Link href={todayWorkout ? `/treino` : "/treino?tab=list"} className="block mt-auto">
           <Button className="w-full text-base font-medium h-11" variant={todayWorkout ? (isCompleted ? "outline" : "default") : "secondary"}>
             {todayWorkout ? (isCompleted ? "Ver Treino" : "Ir para Treino") : "Ver Todos os Treinos"}
           </Button>
