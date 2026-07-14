@@ -4,6 +4,7 @@ import "./globals.css";
 import { Providers } from "./providers";
 import { Toaster } from "sonner";
 import { Analytics } from "@vercel/analytics/next"
+import { GlobalTimer } from "@/src/components/layout/global-timer";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -22,6 +23,7 @@ export default function RootLayout({
       <body className={`${inter.className} bg-zinc-950 text-white min-h-screen`}>
         <Providers>
           {children}
+          <GlobalTimer />
         </Providers>
         <Toaster theme="dark" position="bottom-right" richColors />
         <Analytics />

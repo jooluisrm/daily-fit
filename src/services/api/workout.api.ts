@@ -6,6 +6,12 @@ export type Workout = {
   daysOfWeek: number[];
   isActive: boolean;
   createdAt: string;
+  workoutLogs?: {
+    id: string;
+    startTime: string | null;
+    endTime: string | null;
+    date: string;
+  }[];
 };
 
 export const WorkoutAPI = {

@@ -2,24 +2,54 @@
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Dumbbell, Activity, CheckCircle2, Coffee } from "lucide-react"
+import { Dumbbell, Activity, CheckCircle2, Coffee, Timer } from "lucide-react"
 import Link from "next/link"
 import { useWorkouts } from "@/src/hooks/use-workout"
-import { useTodayWorkoutStatus } from "@/src/hooks/use-workout-log"
+import { useTodayAllWorkoutLogs } from "@/src/hooks/use-workout-log"
 import { useWorkoutExercises } from "@/src/hooks/use-exercise"
 
 export function TodayWorkoutCard() {
   const { data: workouts } = useWorkouts()
   const today = new Date()
 
+  const dateString = today.toISOString().split('T')[0]
+  const { data: allLogs } = useTodayAllWorkoutLogs(dateString)
+
   const selectedDayIndex = today.getDay()
-  const todayWorkout = workouts?.find(w => w.isActive && w.daysOfWeek.includes(selectedDayIndex))
+  let todayWorkout = workouts?.find(w => w.isActive && w.daysOfWeek.includes(selectedDayIndex))
+
+  const activeLog = allLogs?.find((l: any) => l.status === 'IN_PROGRESS' || l.status === 'CARDIO')
+  let isCompleted = false
+  let isWorkoutActive = false
+
+  if (activeLog) {
+    const activeWorkout = workouts?.find(w => w.id === activeLog.workoutId)
+    if (activeWorkout) {
+      todayWorkout = activeWorkout
+      isWorkoutActive = true
+    }
+  } else if (todayWorkout) {
+    const completedLog = allLogs?.find((l: any) => l.workoutId === todayWorkout!.id && l.status === 'COMPLETED')
+    if (completedLog) {
+      isCompleted = true
+    }
+  }
+
   const { data: exercises } = useWorkoutExercises(todayWorkout?.id || "")
 
-  const dateString = today.toISOString().split('T')[0]
-  const { data: workoutLog } = useTodayWorkoutStatus(todayWorkout?.id, dateString)
-
-  const isCompleted = !!workoutLog
+  let avgTime = 0
+  if (todayWorkout && todayWorkout.workoutLogs) {
+    let totalMins = 0
+    let count = 0
+    todayWorkout.workoutLogs.forEach((log: any) => {
+      if (log.startTime && log.endTime) {
+        const diff = new Date(log.endTime).getTime() - new Date(log.startTime).getTime()
+        totalMins += Math.round(diff / 60000)
+        count++
+      }
+    })
+    avgTime = count > 0 ? Math.round(totalMins / count) : 0
+  }
 
   const firstExerciseImg = exercises?.find(ex => ex.isActive)?.exercise?.imageUrl
 
@@ -52,6 +82,12 @@ export function TodayWorkoutCard() {
               Realizado
             </span>
           )}
+          {isWorkoutActive && (
+            <span className="flex items-center gap-1 text-xs font-semibold text-primary bg-primary/10 px-2 py-1 rounded-md border border-primary/20">
+              <Activity className="w-3.5 h-3.5" />
+              Em Andamento
+            </span>
+          )}
         </CardTitle>
         <CardDescription className="text-zinc-400">
           {todayWorkout ? todayWorkout.name : "Dia de descanso. Aproveite para recuperar!"}
@@ -59,16 +95,22 @@ export function TodayWorkoutCard() {
       </CardHeader>
       <CardContent className="relative z-10 flex flex-col flex-1">
         {todayWorkout && exercises && (
-          <div className="flex gap-4 mb-6">
+          <div className="flex flex-wrap gap-2 mb-6">
             <div className="flex items-center gap-1.5 text-sm text-zinc-300 bg-zinc-900/60 backdrop-blur-md border border-zinc-800/80 px-2.5 py-1.5 rounded-md font-medium shadow-sm">
               <Activity className="w-4 h-4 text-primary" />
-              {exercises.length} exercícios programados
+              {exercises.length} exercícios
             </div>
+            {avgTime > 0 && (
+              <div className="flex items-center gap-1.5 text-sm text-zinc-300 bg-zinc-900/60 backdrop-blur-md border border-zinc-800/80 px-2.5 py-1.5 rounded-md font-medium shadow-sm">
+                <Timer className="w-4 h-4 text-primary" />
+                ~ {avgTime} min
+              </div>
+            )}
           </div>
         )}
         <Link href={todayWorkout ? `/treino` : "/treino?tab=list"} className="block mt-auto">
           <Button className="w-full text-base font-medium h-11" variant={todayWorkout ? (isCompleted ? "outline" : "default") : "secondary"}>
-            {todayWorkout ? (isCompleted ? "Ver Treino" : "Ir para Treino") : "Ver Todos os Treinos"}
+            {todayWorkout ? (isWorkoutActive ? "Continuar Treino" : (isCompleted ? "Ver Treino" : "Ir para Treino")) : "Ver Todos os Treinos"}
           </Button>
         </Link>
       </CardContent>

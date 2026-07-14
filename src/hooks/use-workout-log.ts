@@ -9,6 +9,38 @@ export const useTodayWorkoutStatus = (workoutId: string | undefined, date?: stri
   });
 };
 
+export const useTodayAllWorkoutLogs = (date?: string) => {
+  return useQuery({
+    queryKey: ['today-all-workout-logs', date],
+    queryFn: () => WorkoutLogAPI.getTodayAllLogs(date),
+  });
+};
+
+export const useStartWorkout = (workoutId: string | undefined) => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: () => WorkoutLogAPI.startWorkout(workoutId!),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['workout-status', workoutId] });
+      queryClient.invalidateQueries({ queryKey: ['today-all-workout-logs'] });
+    },
+  });
+};
+
+export const useUpdateWorkoutStatus = (workoutId: string | undefined) => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ status, hasCardio }: { status: string, hasCardio?: boolean }) => 
+      WorkoutLogAPI.updateWorkoutStatus(workoutId!, status, hasCardio),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['workout-status', workoutId] });
+      queryClient.invalidateQueries({ queryKey: ['today-all-workout-logs'] });
+    },
+  });
+};
+
 export const useToggleWorkoutStatus = (workoutId: string | undefined) => {
   const queryClient = useQueryClient();
 
@@ -17,6 +49,7 @@ export const useToggleWorkoutStatus = (workoutId: string | undefined) => {
       WorkoutLogAPI.toggleWorkoutStatus(workoutId!, isCompleted),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['workout-status', workoutId] });
+      queryClient.invalidateQueries({ queryKey: ['today-all-workout-logs'] });
     },
   });
 };

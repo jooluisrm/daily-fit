@@ -37,15 +37,24 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     const workoutId = resolvedParams.id;
     const data = await req.json();
 
-    if (data.isCompleted === undefined) {
-      return NextResponse.json({ error: 'Campo isCompleted é obrigatório.' }, { status: 400 });
+    if (data.action === 'start') {
+      const workoutLog = await WorkoutLogService.startWorkout(session.user.id, workoutId);
+      return NextResponse.json(workoutLog);
     }
 
-    const workoutLog = await WorkoutLogService.toggleWorkoutLog(session.user.id, workoutId, data.isCompleted);
+    if (data.action === 'update_status') {
+      const workoutLog = await WorkoutLogService.updateWorkoutStatus(session.user.id, workoutId, data.status, data.hasCardio);
+      return NextResponse.json(workoutLog);
+    }
 
-    return NextResponse.json(workoutLog || { message: 'Treino reaberto com sucesso' });
+    if (data.isCompleted !== undefined) {
+      const workoutLog = await WorkoutLogService.toggleWorkoutLog(session.user.id, workoutId, data.isCompleted);
+      return NextResponse.json(workoutLog || { message: 'Treino reaberto com sucesso' });
+    }
+
+    return NextResponse.json({ error: 'Ação inválida.' }, { status: 400 });
   } catch (error: any) {
-    console.error('Erro ao finalizar treino:', error);
+    console.error('Erro ao processar status do treino:', error);
     return NextResponse.json(
       { error: error.message || 'Erro interno no servidor' },
       { status: 500 }

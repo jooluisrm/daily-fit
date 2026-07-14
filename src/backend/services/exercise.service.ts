@@ -121,6 +121,20 @@ export class ExerciseService {
     const endOfDay = new Date();
     endOfDay.setHours(23, 59, 59, 999);
 
+    // Buscar a sessão ativa (WorkoutLog) de hoje para esse treino
+    const todayWorkoutLog = await prisma.workoutLog.findFirst({
+      where: {
+        userId,
+        workoutId: workoutExercise.workoutId,
+        date: {
+          gte: startOfDay,
+          lte: endOfDay
+        }
+      }
+    });
+
+    const workoutLogId = todayWorkoutLog ? todayWorkoutLog.id : undefined;
+
     const existingLog = await prisma.exerciseLog.findFirst({
       where: {
         workoutExerciseId,
@@ -137,7 +151,8 @@ export class ExerciseService {
         where: { id: existingLog.id },
         data: {
           weight: data.weight,
-          repsDone: data.repsDone
+          repsDone: data.repsDone,
+          workoutLogId
         }
       });
       return updatedLog;
@@ -148,7 +163,8 @@ export class ExerciseService {
         workoutExerciseId,
         setNumber: data.setNumber,
         weight: data.weight,
-        repsDone: data.repsDone
+        repsDone: data.repsDone,
+        workoutLogId
       }
     });
 

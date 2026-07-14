@@ -68,6 +68,7 @@ model User {
 
   // Campos de controle
   termsAccepted Boolean @default(false)
+  restTimeGoal  Int     @default(90) // Tempo de descanso entre séries em segundos
 
   // Métricas Físicas do MVP (opcionais, preenchidos depois)
   age            Int?
@@ -134,6 +135,7 @@ model WorkoutExercise {
 model ExerciseLog {
   id                String @id @default(cuid())
   workoutExerciseId String
+  workoutLogId      String?
 
   setNumber Int      @default(1)
   weight    Float
@@ -141,28 +143,41 @@ model ExerciseLog {
   date      DateTime @default(now())
 
   workoutExercise WorkoutExercise @relation(fields: [workoutExerciseId], references: [id], onDelete: Cascade)
+  workoutLog      WorkoutLog?     @relation(fields: [workoutLogId], references: [id], onDelete: Cascade)
 }
 
 model CardioLog {
-  id        String  @id @default(cuid())
-  userId    String
-  workoutId String?
+  id           String  @id @default(cuid())
+  userId       String
+  workoutId    String?
+  workoutLogId String?
 
-  intensity String // "leve", "moderado", "intenso"
-  duration  Int // em minutos
-  date      DateTime @default(now())
+  type           String    @default("Esteira") // "Esteira", "Bike", "Escada"
+  intensity      String // "leve", "moderado", "intenso"
+  duration       Int // em minutos (tempo real ou registrado antes)
+  targetDuration Int? // meta em minutos
+  startTime      DateTime?
+  endTime        DateTime?
+  date           DateTime  @default(now())
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workoutLog WorkoutLog? @relation(fields: [workoutLogId], references: [id], onDelete: Cascade)
 }
 
 model WorkoutLog {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   userId    String
   workoutId String
-  date      DateTime @default(now())
+  startTime DateTime?
+  endTime   DateTime?
+  status    String    @default("IN_PROGRESS") // IN_PROGRESS, CARDIO, COMPLETED
+  hasCardio Boolean   @default(false)
+  date      DateTime  @default(now())
 
-  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  workout Workout @relation(fields: [workoutId], references: [id], onDelete: Cascade)
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workout      Workout       @relation(fields: [workoutId], references: [id], onDelete: Cascade)
+  exerciseLogs ExerciseLog[]
+  cardioLogs   CardioLog[]
 }
 
 model WeightLog {

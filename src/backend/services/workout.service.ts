@@ -7,7 +7,19 @@ export class WorkoutService {
   static async getWorkouts(userId: string) {
     const workouts = await prisma.workout.findMany({
       where: { userId },
-      orderBy: { createdAt: 'asc' }
+      orderBy: { createdAt: 'asc' },
+      include: {
+        workoutLogs: {
+          where: { status: 'COMPLETED' },
+          orderBy: { date: 'desc' },
+          select: {
+            id: true,
+            startTime: true,
+            endTime: true,
+            date: true
+          }
+        }
+      }
     });
 
     return workouts;
