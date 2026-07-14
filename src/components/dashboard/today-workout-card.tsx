@@ -8,17 +8,17 @@ import { useWorkouts } from "@/src/hooks/use-workout"
 import { useTodayWorkoutStatus } from "@/src/hooks/use-workout-log"
 import { useWorkoutExercises } from "@/src/hooks/use-exercise"
 
-export function TodayWorkoutCard({ selectedDate }: { selectedDate: Date }) {
+export function TodayWorkoutCard() {
   const { data: workouts } = useWorkouts()
+  const today = new Date()
 
-  const selectedDayIndex = selectedDate.getDay()
+  const selectedDayIndex = today.getDay()
   const todayWorkout = workouts?.find(w => w.isActive && w.daysOfWeek.includes(selectedDayIndex))
   const { data: exercises } = useWorkoutExercises(todayWorkout?.id || "")
 
-  const dateString = selectedDate.toISOString()
+  const dateString = today.toISOString()
   const { data: workoutLog } = useTodayWorkoutStatus(todayWorkout?.id, dateString)
 
-  const isToday = new Date().toDateString() === selectedDate.toDateString()
   const isCompleted = !!workoutLog
 
   const firstExerciseImg = exercises?.find(ex => ex.isActive)?.exercise?.imageUrl
@@ -44,7 +44,7 @@ export function TodayWorkoutCard({ selectedDate }: { selectedDate: Date }) {
             ) : (
               <Coffee className="w-5 h-5 text-zinc-500" />
             )}
-            {isToday ? "Treino de Hoje" : `Treino de ${["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"][selectedDayIndex]}`}
+            Treino de Hoje
           </div>
           {isCompleted && (
             <span className="flex items-center gap-1 text-xs font-semibold text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded-md border border-emerald-500/20">

@@ -10,11 +10,12 @@ export async function GET(req: Request) {
     }
 
     const userId = session.user.id;
-    const days = 7; // Fixar em 7 dias para a semana
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
 
-    const targetDate = new Date();
-    targetDate.setDate(targetDate.getDate() - days + 1);
-    targetDate.setHours(0, 0, 0, 0);
+    // Encontrar o Domingo da semana atual para que todas as estatísticas fiquem sincronizadas
+    const targetDate = new Date(today);
+    targetDate.setDate(today.getDate() - today.getDay());
 
     // 0. Treinos Ativos
     const activeWorkouts = await prisma.workout.findMany({
@@ -87,12 +88,9 @@ export async function GET(req: Request) {
     const streak = [];
     const logDates = new Set(workoutLogs.map(log => log.date.toISOString().split('T')[0]));
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    
-    // Encontrar o Domingo dessa semana
-    const sunday = new Date(today);
-    sunday.setDate(today.getDate() - today.getDay()); // getDay() retorna 0 para Domingo, 1 para Seg, etc.
+    // today já foi declarado no início do arquivo
+    // Reutilizar o targetDate (Domingo) que já calculamos no início
+    const sunday = new Date(targetDate);
 
     for (let i = 0; i < 7; i++) {
       const d = new Date(sunday);

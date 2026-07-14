@@ -14,18 +14,12 @@ import { WaterTrackerCard } from "@/src/components/dashboard/water-tracker"
 import { Carousel, CarouselContent, CarouselItem, CarouselDots } from "@/components/ui/carousel"
 
 export default function DashboardPage() {
-  const [selectedDate, setSelectedDate] = useState<Date>(() => {
-    const d = new Date()
-    d.setHours(0, 0, 0, 0)
-    return d
-  })
-
   const { data: stats } = useDashboardStats()
 
   return (
     <div className="p-4 md:p-8 max-w-6xl mx-auto w-full pt-8 md:pt-8">
       <WelcomeCard />
-      <WeekCalendar selectedDate={selectedDate} onSelectDate={setSelectedDate} />
+      <WeekCalendar />
 
       <div className="flex flex-col gap-6">
         <WeeklyStreak streak={stats?.streak || []} />
@@ -40,7 +34,7 @@ export default function DashboardPage() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="w-full">
-            <TodayWorkoutCard selectedDate={selectedDate} />
+            <TodayWorkoutCard />
           </div>
           <div className="w-full">
             <WaterTrackerCard />

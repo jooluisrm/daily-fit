@@ -4,25 +4,30 @@ import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { CheckCircle2, CalendarDays, Save, Activity, Loader2, Dumbbell, Trash2, Undo2 } from "lucide-react"
+import { CheckCircle2, CalendarDays, Save, Activity, Loader2, Dumbbell, Trash2, Undo2, ArrowLeftRight } from "lucide-react"
 import { ExerciseCard } from "@/src/components/treino/exercise-card"
 import { useWorkouts } from "@/src/hooks/use-workout"
 import { useWorkoutExercises } from "@/src/hooks/use-exercise"
 import { useTodayCardio, useLogCardio } from "@/src/hooks/use-cardio"
 import { useTodayWorkoutStatus, useToggleWorkoutStatus } from "@/src/hooks/use-workout-log"
 import { toast } from "sonner"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuLabel, DropdownMenuSeparator } from "@/components/ui/dropdown-menu"
 
 const DAYS_MAP = ["Domingo", "Segunda-feira", "Terça-feira", "Quarta-feira", "Quinta-feira", "Sexta-feira", "Sábado"]
 
 export function TreinoToday() {
   const [cardioIntensity, setCardioIntensity] = useState<string>("moderado")
   const [cardioTime, setCardioTime] = useState<string>("")
+  const [swappedWorkoutId, setSwappedWorkoutId] = useState<string | null>(null)
 
   const { data: workouts, isLoading: isLoadingWorkouts } = useWorkouts()
 
   // Pegar o dia da semana atual (0 = Domingo, 6 = Sábado)
   const todayIndex = new Date().getDay()
-  const todayWorkout = workouts?.find(w => w.isActive && w.daysOfWeek.includes(todayIndex))
+  const defaultTodayWorkout = workouts?.find(w => w.isActive && w.daysOfWeek.includes(todayIndex))
+  const todayWorkout = swappedWorkoutId 
+    ? workouts?.find(w => w.id === swappedWorkoutId) 
+    : defaultTodayWorkout
 
   const { data: exercises, isLoading: isLoadingExercises } = useWorkoutExercises(todayWorkout?.id || "")
   
@@ -43,6 +48,34 @@ export function TreinoToday() {
       setCardioTime("")
     }
   }, [todayCardio])
+
+  // Recupera o swap do localStorage se for do dia atual
+  useEffect(() => {
+    const swapData = localStorage.getItem('daily-fit-swap')
+    if (swapData) {
+      try {
+        const { date, workoutId } = JSON.parse(swapData)
+        if (date === new Date().toISOString().split('T')[0]) {
+          setSwappedWorkoutId(workoutId)
+        }
+      } catch (e) {}
+    }
+  }, [])
+
+  const handleSwap = (workoutId: string) => {
+    setSwappedWorkoutId(workoutId)
+    localStorage.setItem('daily-fit-swap', JSON.stringify({
+      date: new Date().toISOString().split('T')[0],
+      workoutId
+    }))
+    toast.success("Treino alterado para hoje!")
+  }
+
+  const handleRemoveSwap = () => {
+    setSwappedWorkoutId(null)
+    localStorage.removeItem('daily-fit-swap')
+    toast.success("Treino original restaurado.")
+  }
 
   const handleSaveCardio = async () => {
     if (!cardioTime) return
@@ -91,7 +124,26 @@ export function TreinoToday() {
 
   if (!todayWorkout) {
     return (
-      <div className="bg-zinc-900 border border-zinc-800 border-dashed rounded-xl p-12 text-center flex flex-col items-center justify-center">
+      <div className="bg-zinc-900 border border-zinc-800 border-dashed rounded-xl p-12 text-center flex flex-col items-center justify-center relative">
+        {workouts && workouts.length > 0 && (
+           <div className="absolute top-4 right-4 sm:top-6 sm:right-6">
+             <DropdownMenu>
+               <DropdownMenuTrigger render={
+                 <Button variant="outline" size="sm" className="bg-transparent border-zinc-800 text-zinc-400 hover:text-white">
+                   <ArrowLeftRight className="w-4 h-4 mr-2" />
+                   Fazer um treino extra
+                 </Button>
+               } />
+               <DropdownMenuContent align="end" className="w-56 bg-zinc-950 border-zinc-800 text-zinc-200">
+                 {workouts.filter(w => w.isActive).map(w => (
+                    <DropdownMenuItem key={w.id} onClick={() => handleSwap(w.id)} className="cursor-pointer hover:bg-zinc-900">
+                      <Dumbbell className="w-4 h-4 mr-2" /> {w.name}
+                    </DropdownMenuItem>
+                  ))}
+               </DropdownMenuContent>
+             </DropdownMenu>
+           </div>
+        )}
         <div className="w-16 h-16 bg-zinc-800 rounded-full flex items-center justify-center text-zinc-500 mb-4">
           <CalendarDays className="w-8 h-8" />
         </div>
@@ -107,9 +159,35 @@ export function TreinoToday() {
     <div className="space-y-8 animate-in fade-in duration-300">
       {/* Header do Treino */}
       <div>
-        <div className="flex items-center gap-2 text-primary font-medium mb-2">
-          <CalendarDays className="w-5 h-5" />
-          <span>{DAYS_MAP[todayIndex]}</span>
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-2 text-primary font-medium">
+            <CalendarDays className="w-5 h-5" />
+            <span>{DAYS_MAP[todayIndex]}</span>
+          </div>
+          {workouts && workouts.length > 0 && !isCompleted && (
+             <DropdownMenu>
+               <DropdownMenuTrigger render={
+                 <Button variant="ghost" size="sm" className="h-8 text-zinc-400 hover:text-white" title="Trocar treino de hoje">
+                   <ArrowLeftRight className="w-4 h-4 mr-2" />
+                   Trocar Treino
+                 </Button>
+               } />
+               <DropdownMenuContent align="end" className="w-64 bg-zinc-950 border-zinc-800 text-zinc-200">
+                  <div className="px-2 py-1.5 text-sm font-semibold text-zinc-400">Escolha o treino p/ Hoje</div>
+                  <div className="h-px bg-zinc-800 my-1" />
+                  {swappedWorkoutId && defaultTodayWorkout && (
+                     <DropdownMenuItem onClick={handleRemoveSwap} className="cursor-pointer hover:bg-zinc-900 focus:bg-zinc-900 text-primary">
+                       <Undo2 className="w-4 h-4 mr-2" /> Voltar ao Original ({defaultTodayWorkout.name})
+                     </DropdownMenuItem>
+                  )}
+                  {workouts.filter(w => w.id !== todayWorkout?.id && w.isActive).map(w => (
+                    <DropdownMenuItem key={w.id} onClick={() => handleSwap(w.id)} className="cursor-pointer hover:bg-zinc-900 focus:bg-zinc-900">
+                      <Dumbbell className="w-4 h-4 mr-2" /> {w.name}
+                    </DropdownMenuItem>
+                  ))}
+               </DropdownMenuContent>
+             </DropdownMenu>
+          )}
         </div>
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
           <div>
