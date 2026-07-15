@@ -1,0 +1,833 @@
+"use client"
+
+import { useState, useEffect, useMemo } from "react"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Dumbbell, Save, CheckCircle2, ChevronLeft, ChevronRight, Activity, SkipForward, Loader2, AlertTriangle, Play, FastForward, Minimize2, Trophy, History, Plus, Minus, NotebookIcon } from "lucide-react"
+import { useLogExercise } from "@/src/hooks/use-exercise"
+import { useLogCardio } from "@/src/hooks/use-cardio"
+import { useUpdateWorkoutStatus } from "@/src/hooks/use-workout-log"
+import { useTimerStore } from "@/src/store/use-timer-store"
+import { toast } from "sonner"
+import { Label } from "@/components/ui/label"
+import { cn } from "@/lib/utils"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { TreinoHistoryDialog } from "./treino-history-dialog"
+import { TreinoSummaryDialog } from "./treino-summary-dialog"
+import { useSession } from "next-auth/react"
+import { requestNotificationPermission } from "@/src/lib/notifications"
+
+interface TreinoFocusViewProps {
+  workoutId: string
+  exercises: any[]
+  onFinishAll: () => void
+  onClose: () => void
+}
+
+export function TreinoFocusView({ workoutId, exercises, onFinishAll, onClose }: TreinoFocusViewProps) {
+  const { data: session } = useSession()
+  const user = session?.user as any
+  const restTimeGoal = user?.restTimeGoal || 90
+
+  const activeExercises = useMemo(() => exercises.filter((ex) => ex.isActive), [exercises])
+  const [currentIndex, setCurrentIndex] = useState(0)
+  const [currentSet, setCurrentSet] = useState(1)
+
+  const [weightInput, setWeightInput] = useState("")
+  const [repsInput, setRepsInput] = useState("")
+
+  // Cardio Integration States
+  const [phase, setPhase] = useState<'EXERCISES' | 'CARDIO_PROMPT' | 'CARDIO_ACTIVE'>('EXERCISES')
+  const [cardioType, setCardioType] = useState('Esteira')
+  const [cardioIntensity, setCardioIntensity] = useState('moderado')
+  const [cardioTime, setCardioTime] = useState('')
+
+  const [isViewingHistory, setIsViewingHistory] = useState(false)
+  const [navTarget, setNavTarget] = useState<{ index: number, set: number } | null>(null)
+  const [showNavAlert, setShowNavAlert] = useState(false)
+  const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false)
+  const [isSummaryModalOpen, setIsSummaryModalOpen] = useState(false)
+
+  const { isResting, restTimeLeft, startTimer, stopTimer, addTime } = useTimerStore()
+
+  const { mutateAsync: logExercise, isPending: isSaving } = useLogExercise(workoutId)
+  const { mutateAsync: logCardio, isPending: isSavingCardio } = useLogCardio()
+  const { mutateAsync: updateStatus, isPending: isUpdatingStatus } = useUpdateWorkoutStatus(workoutId)
+
+  const checkIsSetCompleted = (exerciseIndex: number, setNum: number) => {
+    const ex = activeExercises[exerciseIndex]
+    if (!ex) return false
+    const todayStr = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
+    return ex.logs?.some((log: any) => {
+      const logDate = new Date(log.date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
+      return logDate === todayStr && log.setNumber === setNum
+    }) || false
+  }
+
+  const goToPendingSet = () => {
+    for (let i = 0; i < activeExercises.length; i++) {
+      const ex = activeExercises[i]
+      for (let s = 1; s <= ex.sets; s++) {
+        if (!checkIsSetCompleted(i, s)) {
+          setCurrentIndex(i)
+          setCurrentSet(s)
+          setIsViewingHistory(false)
+          return
+        }
+      }
+    }
+    // Se tudo estiver concluído, vai para a última série e ativa o histórico para não ficar em loop
+    if (activeExercises.length > 0) {
+      setCurrentIndex(activeExercises.length - 1)
+      setCurrentSet(activeExercises[activeExercises.length - 1].sets)
+      setIsViewingHistory(true)
+    }
+  }
+
+  // Auto-advance if the currently viewed set becomes completed (e.g., from background cache sync)
+  // Mas NÃO fazemos isso se o usuário estiver explicitamente vendo o histórico!
+  useEffect(() => {
+    if (activeExercises.length > 0) {
+      if (!isViewingHistory && checkIsSetCompleted(currentIndex, currentSet)) {
+        goToPendingSet()
+      }
+    }
+  }, [activeExercises, currentIndex, currentSet, isViewingHistory])
+
+  const currentExercise = activeExercises[currentIndex]
+
+  // Derived data for history pill
+  const historyLog = useMemo(() => {
+    if (!currentExercise) return null
+    const todayStr = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+    const logs = currentExercise.logs?.filter((l: any) => {
+      if (l.setNumber !== currentSet) return false
+      const logDateStr = new Date(l.date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+      return logDateStr !== todayStr
+    }) || []
+
+    logs.sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime())
+    return logs.length > 0 ? logs[0] : null
+  }, [currentExercise, currentSet])
+
+  // Derived data for full history modal
+  const fullHistory = useMemo(() => {
+    if (!currentExercise || !currentExercise.logs) return []
+    const todayStr = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+
+    const logs = currentExercise.logs.filter((l: any) => {
+      const logDateStr = new Date(l.date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+      return logDateStr !== todayStr
+    })
+
+    const grouped: Record<string, any[]> = {}
+    logs.forEach((l: any) => {
+      const dateStr = new Date(l.date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+      if (!grouped[dateStr]) grouped[dateStr] = []
+      grouped[dateStr].push(l)
+    })
+
+    const sortedDates = Object.keys(grouped).sort((a, b) => {
+      const [dayA, monthA, yearA] = a.split('/')
+      const [dayB, monthB, yearB] = b.split('/')
+      return new Date(Number(yearB), Number(monthB) - 1, Number(dayB)).getTime() - new Date(Number(yearA), Number(monthA) - 1, Number(dayA)).getTime()
+    })
+
+    return sortedDates.map(date => ({
+      date,
+      logs: grouped[date].sort((a: any, b: any) => a.setNumber - b.setNumber)
+    }))
+  }, [currentExercise])
+
+  // Update inputs when current exercise or set changes
+  useEffect(() => {
+    if (!currentExercise) return
+
+    const todayStr = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+
+    // 1. Has log for TODAY for current set? (Editing mode)
+    const todayLog = currentExercise.logs?.find((l: any) => {
+      const logDate = new Date(l.date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+      return l.setNumber === currentSet && logDate === todayStr
+    })
+
+    if (todayLog) {
+      setWeightInput(String(todayLog.weight))
+      setRepsInput(String(todayLog.repsDone))
+      return
+    }
+
+    // 2. Is currentSet > 1? Pre-fill with previous set from TODAY
+    if (currentSet > 1) {
+      const prevSetTodayLog = currentExercise.logs?.find((l: any) => {
+        const logDate = new Date(l.date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+        return l.setNumber === currentSet - 1 && logDate === todayStr
+      })
+
+      if (prevSetTodayLog) {
+        setWeightInput(String(prevSetTodayLog.weight))
+        setRepsInput(String(prevSetTodayLog.repsDone))
+        return
+      }
+    }
+
+    // 3. Fallback to latest log for this set (from any day)
+    const setLogs = currentExercise.logs?.filter((l: any) => l.setNumber === currentSet) || []
+    const sortedSetLogs = [...setLogs].sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime())
+
+    if (sortedSetLogs.length > 0) {
+      setWeightInput(String(sortedSetLogs[0].weight))
+      setRepsInput(String(sortedSetLogs[0].repsDone))
+    } else {
+      setWeightInput("")
+      setRepsInput("")
+    }
+  }, [currentIndex, currentSet, currentExercise])
+
+  // Auto-advance 10 seconds after rest finishes (if not manually dismissed)
+  useEffect(() => {
+    let timeout: NodeJS.Timeout
+    if (isResting && restTimeLeft <= 0) {
+      timeout = setTimeout(() => {
+        handleRestFinished()
+      }, 10000)
+    }
+    return () => {
+      if (timeout) clearTimeout(timeout)
+    }
+  }, [isResting, restTimeLeft])
+
+  const handleRestFinished = () => {
+    stopTimer()
+    goToPendingSet()
+  }
+
+  const advanceToNextSet = () => {
+    if (currentSet < currentExercise.sets) {
+      setCurrentSet(currentSet + 1)
+    } else {
+      if (currentIndex < activeExercises.length - 1) {
+        setCurrentIndex(currentIndex + 1)
+        setCurrentSet(1)
+      } else {
+        setPhase('CARDIO_PROMPT')
+      }
+    }
+  }
+
+  const handleSkipCardio = async () => {
+    try {
+      await updateStatus({ status: 'COMPLETED', hasCardio: false })
+      toast.success("Treino finalizado! 🎉")
+      onFinishAll()
+    } catch (error) {
+      toast.error("Erro ao finalizar treino.")
+    }
+  }
+
+  const handleFinishCardio = async () => {
+    try {
+      await logCardio({
+        workoutId,
+        type: cardioType,
+        intensity: cardioIntensity,
+        duration: Number(cardioTime)
+      })
+      await updateStatus({ status: 'COMPLETED', hasCardio: true })
+      toast.success("Treino 100% finalizado! 🎉")
+      onFinishAll()
+    } catch (error) {
+      toast.error("Erro ao salvar cardio.")
+    }
+  }
+
+  const handleSave = async () => {
+    if (!currentExercise || !weightInput || !repsInput) return
+
+    try {
+      await logExercise({
+        workoutExerciseId: currentExercise.id,
+        setNumber: currentSet,
+        weight: Number(weightInput),
+        repsDone: Number(repsInput)
+      })
+      toast.success(`Série ${currentSet} salva!`)
+
+      // Se for a última série do último exercício, finaliza direto. Se não, descanso.
+      if (currentSet === currentExercise.sets && currentIndex === activeExercises.length - 1) {
+        setPhase('CARDIO_PROMPT')
+      } else {
+        // Solicita permissão de notificação (o navegador só pergunta se ainda não tiver)
+        requestNotificationPermission()
+        startTimer(restTimeGoal, workoutId) // Usa o tempo de descanso configurado pelo usuário
+      }
+    } catch (error) {
+      toast.error("Erro ao salvar série.")
+    }
+  }
+
+  if (!currentExercise) return null
+
+  // Calculate progress
+  const todayStr = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
+  let totalSets = 0
+  let completedSets = 0
+
+  activeExercises.forEach(ex => {
+    totalSets += ex.sets
+    for (let s = 1; s <= ex.sets; s++) {
+      const isDone = ex.logs?.some((log: any) => {
+        const logDate = new Date(log.date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
+        return logDate === todayStr && log.setNumber === s
+      })
+      if (isDone) completedSets++
+    }
+  })
+
+  const progressPercent = totalSets > 0 ? (completedSets / totalSets) * 100 : 0
+
+  const formatTime = (totalSeconds: number) => {
+    const mins = Math.floor(totalSeconds / 60)
+    const secs = totalSeconds % 60
+    return `${mins}:${secs.toString().padStart(2, "0")}`
+  }
+
+  if (phase === 'CARDIO_PROMPT') {
+    return (
+      <div className="fixed inset-0 bottom-16 md:bottom-0 z-40 flex flex-col bg-zinc-950 overflow-hidden shadow-2xl animate-in slide-in-from-bottom-4 duration-300">
+        <div className="absolute top-0 left-0 right-0 h-1.5 bg-zinc-900 z-50">
+          <div className="h-full bg-emerald-500 w-full" />
+        </div>
+        <div className="flex-1 flex flex-col items-center justify-center py-16 px-6 text-center relative">
+          <div className="absolute inset-0 bg-gradient-to-b from-emerald-500/10 to-transparent opacity-50 z-0"></div>
+
+          <Activity className="w-20 h-20 text-emerald-500 mb-6 relative z-10" />
+          <h2 className="text-4xl font-black text-white mb-4 relative z-10 tracking-tight">Musculação Concluída! 💪</h2>
+          <p className="text-zinc-400 mb-12 max-w-md relative z-10 text-xl">Deseja fazer cardio agora para finalizar seu treino por completo?</p>
+
+          <div className="flex flex-col sm:flex-row gap-4 relative z-10 w-full max-w-md">
+            <Button
+              size="lg"
+              onClick={handleSkipCardio}
+              disabled={isUpdatingStatus}
+              variant="outline"
+              className="flex-1 border-zinc-700 text-zinc-300 hover:bg-zinc-800 hover:text-white py-8 text-lg rounded-2xl"
+            >
+              Pular Cardio
+            </Button>
+            <Button
+              size="lg"
+              onClick={() => setPhase('CARDIO_ACTIVE')}
+              disabled={isUpdatingStatus}
+              className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white shadow-[0_0_20px_rgba(16,185,129,0.3)] py-8 text-lg font-bold rounded-2xl"
+            >
+              Fazer Cardio
+            </Button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (phase === 'CARDIO_ACTIVE') {
+    return (
+      <div className="fixed inset-0 bottom-16 md:bottom-0 z-40 flex flex-col bg-zinc-950 overflow-hidden shadow-2xl animate-in slide-in-from-bottom-4 duration-300">
+        <div className="absolute top-0 left-0 right-0 h-1.5 bg-zinc-900 z-50">
+          <div className="h-full bg-emerald-500 w-full" />
+        </div>
+        <div className="flex-1 flex flex-col items-center justify-center p-6 relative overflow-y-auto">
+          <Activity className="w-16 h-16 text-emerald-500 mb-6 z-10" />
+          <h2 className="text-3xl font-black text-white mb-2 z-10 tracking-tight">Sessão de Cardio</h2>
+          <p className="text-zinc-400 mb-8 max-w-md z-10 text-center text-lg">Bora suar! Registre sua atividade e finalize com chave de ouro.</p>
+
+          <div className="w-full max-w-md space-y-8 bg-zinc-900/60 p-6 sm:p-8 rounded-3xl border border-zinc-800 z-10 shadow-2xl backdrop-blur-xl">
+            <div className="space-y-4">
+              <Label className="text-zinc-300 uppercase tracking-widest text-xs font-bold">Tipo de Aparelho</Label>
+              <div className="flex gap-2">
+                {['Esteira', 'Bike', 'Escada'].map((type) => (
+                  <Button
+                    key={type}
+                    variant="ghost"
+                    onClick={() => setCardioType(type)}
+                    className={`flex-1 h-14 text-sm font-semibold rounded-xl transition-all border ${cardioType === type ? "bg-emerald-600 text-white border-emerald-500 hover:bg-emerald-700 shadow-[0_0_15px_rgba(16,185,129,0.3)]" : "bg-zinc-900/50 border-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-800"}`}
+                  >
+                    {type}
+                  </Button>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <Label className="text-zinc-300 uppercase tracking-widest text-xs font-bold">Intensidade</Label>
+              <div className="flex gap-2">
+                {['leve', 'moderado', 'intenso'].map((int) => (
+                  <Button
+                    key={int}
+                    variant="ghost"
+                    onClick={() => setCardioIntensity(int)}
+                    className={`flex-1 h-14 text-sm font-semibold rounded-xl transition-all border ${cardioIntensity === int ? "bg-emerald-600 text-white border-emerald-500 hover:bg-emerald-700 shadow-[0_0_15px_rgba(16,185,129,0.3)]" : "bg-zinc-900/50 border-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-800"}`}
+                  >
+                    {int.charAt(0).toUpperCase() + int.slice(1)}
+                  </Button>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <Label htmlFor="cardio-time" className="text-zinc-300 uppercase tracking-widest text-xs font-bold">Tempo (minutos)</Label>
+              <Input
+                id="cardio-time"
+                type="number"
+                placeholder="0"
+                value={cardioTime}
+                onChange={(e) => setCardioTime(e.target.value)}
+                className="bg-zinc-900 border-zinc-800 text-white focus-visible:ring-emerald-500 h-16 text-2xl text-center font-black rounded-2xl shadow-inner [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+              />
+            </div>
+
+            <div className="pt-4 space-y-4">
+              <Button
+                onClick={handleFinishCardio}
+                disabled={!cardioTime || isSavingCardio || isUpdatingStatus}
+                className="w-full h-16 text-lg font-bold shadow-[0_0_20px_rgba(16,185,129,0.3)] bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl transition-all hover:scale-[1.02]"
+              >
+                {(isSavingCardio || isUpdatingStatus) ? <Loader2 className="w-6 h-6 mr-3 animate-spin" /> : <Trophy className="w-6 h-6 mr-3" />}
+                Salvar e Finalizar Treino
+              </Button>
+
+              <Button
+                onClick={handleSkipCardio}
+                disabled={isSavingCardio || isUpdatingStatus}
+                variant="ghost"
+                className="w-full text-zinc-500 hover:text-zinc-300 h-12 rounded-xl"
+              >
+                Cancelar e Pular
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  const isHistoryMode = checkIsSetCompleted(currentIndex, currentSet)
+
+  return (
+    <div className={cn(
+      "fixed inset-0 bottom-16 md:bottom-0 z-40 flex flex-col bg-zinc-950 overflow-hidden shadow-2xl animate-in slide-in-from-bottom-4 duration-300",
+      isHistoryMode ? "ring-inset ring-2 ring-amber-500/20" : ""
+    )}>
+      {/* Progress Bar Top */}
+      <div className="absolute top-0 left-0 right-0 h-1.5 bg-zinc-900 z-50">
+        <div
+          className={cn("h-full transition-all duration-500 ease-out", isHistoryMode ? "bg-amber-600" : "bg-primary")}
+          style={{ width: `${progressPercent}%` }}
+        />
+      </div>
+
+      {/* Header Info */}
+      <div className="p-4 sm:p-6 pb-0 flex justify-between items-center z-50 relative bg-gradient-to-b from-zinc-950 to-transparent">
+        <div className="flex items-center gap-3">
+          <Button variant="ghost" size="icon" onClick={onClose} className="text-zinc-400 hover:text-white hover:bg-zinc-800/50 rounded-full h-10 w-10">
+            <Minimize2 className="w-5 h-5" />
+          </Button>
+        </div>
+        <button 
+          onClick={() => setIsSummaryModalOpen(true)}
+          className="text-sm font-semibold text-zinc-300 bg-zinc-900/80 hover:bg-zinc-800 hover:text-white px-4 py-1.5 rounded-full border border-zinc-800 backdrop-blur-sm transition-all shadow-sm active:scale-95 flex items-center gap-2"
+        >
+          {Math.round(progressPercent)}% Concluído
+        </button>
+      </div>
+
+      {/* Exercises Timeline */}
+      <div className="relative z-50 flex justify-center px-4 -mt-2 mb-2">
+        <div className="flex gap-2 items-center bg-zinc-900/60 backdrop-blur-md p-1.5 rounded-full border border-zinc-800/80 overflow-x-auto max-w-full no-scrollbar">
+          {activeExercises.map((ex, idx) => {
+            const isPast = idx < currentIndex
+            const isCurrent = idx === currentIndex
+
+            return (
+              <div
+                key={ex.id}
+                className={cn(
+                  "relative rounded-full flex-shrink-0 transition-all duration-300 flex items-center justify-center overflow-hidden",
+                  isCurrent ? "w-12 h-12 ring-2 ring-primary ring-offset-2 ring-offset-zinc-950 opacity-100 shadow-[0_0_15px_rgba(var(--primary),0.4)] z-10" : "w-10 h-10 opacity-50 grayscale hover:opacity-80 bg-zinc-800"
+                )}
+              >
+                {ex.exercise.imageUrl ? (
+                  <img src={ex.exercise.imageUrl} alt={ex.exercise.name} className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full bg-zinc-800 flex items-center justify-center">
+                    <Dumbbell className={isCurrent ? (isHistoryMode ? "w-6 h-6 text-amber-500" : "w-6 h-6 text-primary") : "w-5 h-5 text-zinc-500"} />
+                  </div>
+                )}
+                {isPast && (
+                  <div className="absolute inset-0 bg-primary/80 backdrop-blur-sm flex items-center justify-center">
+                    <CheckCircle2 className="w-5 h-5 text-white" />
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* Main Content Area */}
+      <div className="flex-1 flex flex-col relative z-10 overflow-hidden">
+
+        {/* Background Image */}
+        <div className="absolute inset-0 z-0">
+          {currentExercise.exercise.imageUrl ? (
+            <>
+              <img
+                src={currentExercise.exercise.imageUrl}
+                alt={currentExercise.exercise.name}
+                className="w-full h-full object-cover opacity-20 mix-blend-luminosity scale-105"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/80 to-transparent" />
+            </>
+          ) : (
+            <div className="absolute inset-0 bg-zinc-900 flex items-center justify-center opacity-10">
+              <Dumbbell className="w-64 h-64 text-zinc-800" />
+            </div>
+          )}
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 z-10 flex flex-col justify-center px-6 sm:px-12 pt-8">
+          <div className="text-center mb-8">
+            <h2 className="text-3xl sm:text-5xl font-black text-white mb-4 drop-shadow-xl tracking-tight">
+              {currentExercise.exercise.name}
+            </h2>
+            <div className="flex items-center justify-center gap-2 sm:gap-3 mt-4">
+              {Array.from({ length: currentExercise.sets }).map((_, idx) => {
+                const setNum = idx + 1
+                const isCompleted = checkIsSetCompleted(currentIndex, setNum)
+                const isCurrent = setNum === currentSet
+
+                return (
+                  <div
+                    key={setNum}
+                    className={cn(
+                      "w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center font-bold text-sm sm:text-base transition-all duration-300",
+                      isCompleted && !isCurrent ? (isHistoryMode ? "bg-amber-600 text-white shadow-[0_0_15px_rgba(245,158,11,0.5)]" : "bg-primary text-white shadow-[0_0_15px_rgba(var(--primary),0.5)]") : (!isCurrent ? "bg-zinc-900/80 text-zinc-500 backdrop-blur-md" : ""),
+                      isCurrent ? (isHistoryMode ? "bg-amber-600 text-white ring-4 ring-amber-500/30 scale-110 shadow-[0_0_20px_rgba(245,158,11,0.8)]" : "border-2 border-primary text-primary bg-primary/10 scale-110") : "border border-zinc-800"
+                    )}
+                  >
+                    {isCompleted ? <CheckCircle2 className="w-5 h-5 sm:w-6 sm:h-6" /> : setNum}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+
+
+
+          {!isResting ? (
+            <div className="flex flex-col items-center animate-in zoom-in-95 duration-300">
+              <div className="text-sm text-zinc-500 bg-zinc-900/50 px-4 py-2 mb-4 rounded-lg border border-zinc-800/50">
+                Meta: <strong className="text-zinc-300">{currentExercise.reps} reps</strong>
+              </div>
+              <div className="flex gap-4 sm:gap-6 w-full max-w-sm">
+                <div className="flex-1 space-y-2">
+                  <Label className="text-zinc-400 text-center block text-sm uppercase tracking-wider">Carga (kg)</Label>
+                  <div className={cn("flex items-center bg-zinc-900/40 rounded-2xl border border-zinc-800 p-1 transition-colors", isHistoryMode ? "focus-within:border-amber-500/50" : "focus-within:border-primary/50")}>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setWeightInput(prev => String(Math.max(0, Number(prev || 0) - 1)))}
+                      className="h-14 w-12 rounded-xl text-zinc-500 hover:text-white hover:bg-zinc-800 shrink-0"
+                    >
+                      <Minus className="w-5 h-5" />
+                    </Button>
+                    <Input
+                      type="number"
+                      value={weightInput}
+                      onChange={e => setWeightInput(e.target.value)}
+                      className="h-14 flex-1 text-center text-2xl font-bold bg-transparent border-0 text-white shadow-none focus-visible:ring-0 px-0 min-w-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                      placeholder="0"
+                    />
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setWeightInput(prev => String(Number(prev || 0) + 1))}
+                      className="h-14 w-12 rounded-xl text-zinc-500 hover:text-white hover:bg-zinc-800 shrink-0"
+                    >
+                      <Plus className="w-5 h-5" />
+                    </Button>
+                  </div>
+                </div>
+                <div className="flex-1 space-y-2">
+                  <Label className="text-zinc-400 text-center block text-sm uppercase tracking-wider">Repetições</Label>
+                  <div className={cn("flex items-center bg-zinc-900/40 rounded-2xl border border-zinc-800 p-1 transition-colors", isHistoryMode ? "focus-within:border-amber-500/50" : "focus-within:border-primary/50")}>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setRepsInput(prev => String(Math.max(0, Number(prev || 0) - 1)))}
+                      className="h-14 w-12 rounded-xl text-zinc-500 hover:text-white hover:bg-zinc-800 shrink-0"
+                    >
+                      <Minus className="w-5 h-5" />
+                    </Button>
+                    <Input
+                      type="number"
+                      value={repsInput}
+                      onChange={e => setRepsInput(e.target.value)}
+                      className="h-14 flex-1 text-center text-2xl font-bold bg-transparent border-0 text-white shadow-none focus-visible:ring-0 px-0 min-w-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                      placeholder="0"
+                    />
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setRepsInput(prev => String(Number(prev || 0) + 1))}
+                      className="h-14 w-12 rounded-xl text-zinc-500 hover:text-white hover:bg-zinc-800 shrink-0"
+                    >
+                      <Plus className="w-5 h-5" />
+                    </Button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+                <button
+                  onClick={() => setIsHistoryModalOpen(true)}
+                  className="text-sm text-zinc-400 hover:text-zinc-200 bg-zinc-900/50 hover:bg-zinc-800 px-4 py-2 rounded-lg border border-zinc-800/50 transition-colors flex items-center gap-2 group"
+                >
+                  <NotebookIcon className="w-4 h-4" /> Histórico
+                </button>
+
+                {historyLog && (
+                  <button
+                    onClick={() => {
+                      setWeightInput(String(historyLog.weight))
+                      setRepsInput(String(historyLog.repsDone))
+                    }}
+                    className="text-sm text-zinc-400 hover:text-zinc-200 bg-zinc-900/50 hover:bg-zinc-800 px-4 py-2 rounded-lg border border-zinc-800/50 transition-colors flex items-center gap-2 group"
+                  >
+                    <History className="w-4 h-4 opacity-70 group-hover:opacity-100 transition-opacity" />
+                    Último: <strong className="text-zinc-300">{historyLog.weight}kg x {historyLog.repsDone}</strong>
+                  </button>
+                )}
+
+              </div>
+
+              <div className="w-full max-w-sm mt-10 space-y-3">
+                {!checkIsSetCompleted(currentIndex, currentSet) && weightInput && repsInput && (
+                  <div className="flex items-center justify-center gap-2 text-amber-500 bg-amber-500/10 px-4 py-2.5 rounded-xl text-sm border border-amber-500/20 font-medium animate-in fade-in slide-in-from-bottom-2 mb-2">
+                    <AlertTriangle className="w-5 h-5 flex-shrink-0" />
+                    <span>Série pendente. Confirme os valores e salve!</span>
+                  </div>
+                )}
+
+                <Button
+                  onClick={handleSave}
+                  disabled={!weightInput || !repsInput || isSaving}
+                  className={cn(
+                    "w-full h-16 text-[15px] uppercase tracking-[0.2em] font-black rounded-2xl transition-all duration-300 relative overflow-hidden group",
+                    checkIsSetCompleted(currentIndex, currentSet)
+                      ? "bg-zinc-900 border-2 border-zinc-800/50 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 hover:border-zinc-700 shadow-none"
+                      : "bg-primary text-primary-foreground hover:brightness-110 shadow-[0_10px_40px_-10px_rgba(var(--primary),0.8)] hover:shadow-[0_15px_50px_-10px_rgba(var(--primary),0.9)] hover:-translate-y-1 border border-primary/50"
+                  )}
+                >
+                  {!checkIsSetCompleted(currentIndex, currentSet) && (
+                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-[150%] skew-x-12 group-hover:translate-x-[150%] transition-transform duration-1000 ease-in-out" />
+                  )}
+                  <span className="relative z-10 flex items-center justify-center">
+                    {isSaving ? <Loader2 className="w-6 h-6 animate-spin mr-3" /> : (checkIsSetCompleted(currentIndex, currentSet) ? <CheckCircle2 className="w-6 h-6 mr-3" /> : <Save className="w-6 h-6 mr-3" />)}
+                    {checkIsSetCompleted(currentIndex, currentSet) ? "Atualizar Série" : "Salvar Série"}
+                  </span>
+                </Button>
+
+                {isHistoryMode && (
+                  <Button
+                    variant="outline"
+                    onClick={goToPendingSet}
+                    className="w-full h-12 text-amber-500 border-amber-500/30 hover:bg-amber-500/10 hover:text-amber-400 rounded-xl"
+                  >
+                    Ir para série pendente
+                  </Button>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center animate-in zoom-in-95 duration-300">
+              <div className="w-48 h-48 rounded-full flex flex-col items-center justify-center relative shadow-[0_0_50px_rgba(0,0,0,0.5)] bg-zinc-900/50 backdrop-blur-md">
+                <svg className="absolute inset-0 w-full h-full" viewBox="0 0 192 192">
+                  <circle
+                    cx="96" cy="96" r="88"
+                    stroke="currentColor" strokeWidth="8" fill="none"
+                    className="text-zinc-800"
+                  />
+                  <circle
+                    cx="96" cy="96" r="88"
+                    stroke="currentColor" strokeWidth="8" fill="none"
+                    className="text-primary transition-all duration-1000 ease-linear"
+                    strokeDasharray="553"
+                    strokeDashoffset={553 - (553 * Math.min(restTimeLeft, restTimeGoal)) / restTimeGoal}
+                    strokeLinecap="round"
+                    transform="rotate(-90 96 96)"
+                  />
+                </svg>
+                <span className="text-5xl font-mono font-bold text-white mb-2">{formatTime(restTimeLeft)}</span>
+                <span className="text-zinc-400 text-sm uppercase tracking-widest font-semibold">Descanso</span>
+              </div>
+
+              <div className="flex gap-4 mt-10 w-full max-w-xs">
+                <Button
+                  variant="outline"
+                  onClick={() => addTime(30)}
+                  className="flex-1 h-12 border-zinc-700 text-zinc-300 hover:text-white hover:bg-zinc-800"
+                >
+                  +30s
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => addTime(-30)}
+                  className="flex-1 h-12 border-zinc-700 text-zinc-300 hover:text-white hover:bg-zinc-800"
+                >
+                  -30s
+                </Button>
+              </div>
+
+              <Button
+                variant={restTimeLeft === 0 ? "default" : "ghost"}
+                onClick={handleRestFinished}
+                className={cn(
+                  "mt-6 transition-all duration-300",
+                  restTimeLeft === 0 
+                    ? "w-full h-14 bg-primary text-white hover:bg-primary/90 text-lg font-bold shadow-[0_0_20px_rgba(var(--primary),0.3)] animate-in slide-in-from-bottom-2" 
+                    : "text-zinc-500 hover:text-white hover:bg-zinc-800/50"
+                )}
+              >
+                {restTimeLeft === 0 ? (
+                  <>
+                    <CheckCircle2 className="w-5 h-5 mr-2" />
+                    Continuar Treino
+                  </>
+                ) : (
+                  <>
+                    <SkipForward className="w-4 h-4 mr-2" />
+                    Pular Descanso
+                  </>
+                )}
+              </Button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Navigation Footer */}
+      <div className="p-4 bg-zinc-950 border-t border-zinc-900 flex justify-between items-center z-10 relative">
+        <Button
+          variant="secondary"
+          onClick={() => {
+            let nextI = currentIndex
+            let nextS = currentSet
+            if (currentSet > 1) {
+              nextS = currentSet - 1
+            } else if (currentIndex > 0) {
+              nextI = currentIndex - 1
+              nextS = activeExercises[currentIndex - 1].sets
+            } else {
+              return
+            }
+
+            if (checkIsSetCompleted(nextI, nextS)) {
+              if (!isViewingHistory) {
+                setNavTarget({ index: nextI, set: nextS })
+                setShowNavAlert(true)
+              } else {
+                setCurrentIndex(nextI)
+                setCurrentSet(nextS)
+              }
+            } else {
+              setCurrentIndex(nextI)
+              setCurrentSet(nextS)
+              setIsViewingHistory(false)
+            }
+          }}
+          disabled={currentIndex === 0 && currentSet === 1}
+          className="bg-zinc-900/80 hover:bg-zinc-800 text-zinc-300 border border-zinc-800 rounded-xl px-5 h-12"
+        >
+          <ChevronLeft className="w-5 h-5 mr-2 text-zinc-500" />
+          Anterior
+        </Button>
+        <Button
+          variant="secondary"
+          onClick={advanceToNextSet}
+          className="bg-zinc-900/80 hover:bg-zinc-800 text-zinc-300 border border-zinc-800 rounded-xl px-5 h-12"
+        >
+          Pular
+          <ChevronRight className="w-5 h-5 ml-2 text-zinc-500" />
+        </Button>
+      </div>
+
+      <Dialog open={showNavAlert} onOpenChange={setShowNavAlert}>
+        <DialogContent className="bg-zinc-950 border-zinc-800 text-white rounded-3xl p-6 shadow-2xl max-w-sm w-[90%]">
+          <DialogHeader>
+            <div className="mx-auto w-16 h-16 bg-amber-500/10 rounded-full flex items-center justify-center mb-4">
+              <AlertTriangle className="w-8 h-8 text-amber-500" />
+            </div>
+            <DialogTitle className="text-2xl font-black text-center">Série já concluída</DialogTitle>
+            <DialogDescription className="text-center text-zinc-400 text-base mt-2">
+              Você tem certeza que deseja voltar e visualizar ou editar uma série que já foi registrada hoje?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex flex-col-reverse sm:flex-row gap-3 mt-6 sm:mt-8 bg-transparent p-0 border-0">
+            <Button
+              variant="ghost"
+              onClick={() => setShowNavAlert(false)}
+              className="flex-1 h-14 rounded-xl text-zinc-400 hover:text-white hover:bg-zinc-900 text-base font-bold border border-zinc-800"
+            >
+              Cancelar
+            </Button>
+            <Button
+              variant="default"
+              onClick={() => {
+                if (navTarget) {
+                  setCurrentIndex(navTarget.index)
+                  setCurrentSet(navTarget.set)
+                  setIsViewingHistory(true)
+                }
+                setShowNavAlert(false)
+              }}
+              className="flex-1 h-14 rounded-xl bg-amber-600 hover:bg-amber-700 text-white shadow-[0_0_15px_rgba(217,119,6,0.3)] text-base font-bold"
+            >
+              Sim, voltar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <TreinoHistoryDialog
+        isOpen={isHistoryModalOpen}
+        onOpenChange={setIsHistoryModalOpen}
+        exerciseName={currentExercise?.exercise?.name}
+        fullHistory={fullHistory}
+      />
+
+      <TreinoSummaryDialog
+        isOpen={isSummaryModalOpen}
+        onOpenChange={setIsSummaryModalOpen}
+        progressPercent={progressPercent}
+        activeExercises={activeExercises}
+        currentIndex={currentIndex}
+        currentSet={currentSet}
+        isViewingHistory={isViewingHistory}
+        checkIsSetCompleted={checkIsSetCompleted}
+        onNavigate={(idx, targetSet, isFullyDone) => {
+          if (isFullyDone && !isViewingHistory) {
+             setNavTarget({ index: idx, set: targetSet })
+             setShowNavAlert(true)
+          } else {
+             setCurrentIndex(idx)
+             setCurrentSet(targetSet)
+             if (isFullyDone) setIsViewingHistory(true)
+             else setIsViewingHistory(false)
+          }
+          setIsSummaryModalOpen(false)
+        }}
+      />
+    </div>
+  )
+}

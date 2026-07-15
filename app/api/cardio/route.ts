@@ -36,7 +36,12 @@ export async function POST(req: Request) {
     const cardioLog = await CardioService.logCardio(session.user.id, {
       intensity: data.intensity,
       duration: Number(data.duration),
-      workoutId: data.workoutId
+      workoutId: data.workoutId,
+      workoutLogId: data.workoutLogId,
+      type: data.type,
+      targetDuration: data.targetDuration ? Number(data.targetDuration) : undefined,
+      startTime: data.startTime ? new Date(data.startTime) : undefined,
+      endTime: data.endTime ? new Date(data.endTime) : undefined,
     });
 
     return NextResponse.json(cardioLog || { message: 'Cardio removido com sucesso' });

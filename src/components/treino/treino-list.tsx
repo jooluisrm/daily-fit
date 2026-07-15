@@ -1,7 +1,7 @@
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
-import { Plus, Dumbbell, ChevronRight, Calendar, Loader2 } from "lucide-react"
+import { Plus, Dumbbell, ChevronRight, Calendar, Loader2, History, Timer } from "lucide-react"
 import { useWorkouts } from "@/src/hooks/use-workout"
 
 const DAYS_MAP = ["DOM", "SEG", "TER", "QUA", "QUI", "SEX", "SÁB"]
@@ -61,12 +61,57 @@ export function TreinoList() {
                     <ChevronRight className="w-5 h-5 text-zinc-600 group-hover:text-primary group-hover:translate-x-1 transition-all duration-300" />
                   </div>
 
-                  <div className="mt-auto pt-4 border-t border-zinc-800/50">
-                    <div className="flex items-center text-xs text-zinc-500">
-                      <Calendar className="w-4 h-4 mr-2" />
+                  <div className="mt-auto pt-4 border-t border-zinc-800/50 flex flex-col gap-2.5">
+                    <div className="flex items-center text-[11px] text-zinc-500 font-medium">
+                      <Calendar className="w-3.5 h-3.5 mr-2 opacity-70" />
                       {workout.daysOfWeek.length > 0 
                         ? workout.daysOfWeek.sort().map(d => DAYS_MAP[d]).join(", ")
                         : "Nenhum dia selecionado"}
+                    </div>
+                    
+                    <div className="flex items-center justify-between text-[11px] text-zinc-500 font-medium">
+                      {(() => {
+                        const logs = workout.workoutLogs || [];
+                        if (logs.length === 0) {
+                          return (
+                            <>
+                              <div className="flex items-center gap-1.5"><History className="w-3.5 h-3.5 opacity-70" /> Faça seu primeiro treino</div>
+                              <div className="flex items-center gap-1.5"><Timer className="w-3.5 h-3.5 opacity-70" /> ~ 0m</div>
+                            </>
+                          )
+                        }
+
+                        // Calculate days ago
+                        const lastLogDate = new Date(logs[0].date);
+                        lastLogDate.setHours(0,0,0,0);
+                        const today = new Date();
+                        today.setHours(0,0,0,0);
+                        const diffTime = Math.abs(today.getTime() - lastLogDate.getTime());
+                        const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+                        
+                        let daysText = "Hoje";
+                        if (diffDays === 1) daysText = "Ontem";
+                        else if (diffDays > 1) daysText = `Há ${diffDays} dias`;
+
+                        // Calculate average time
+                        let totalMins = 0;
+                        let count = 0;
+                        logs.forEach(log => {
+                          if (log.startTime && log.endTime) {
+                            const diff = new Date(log.endTime).getTime() - new Date(log.startTime).getTime();
+                            totalMins += Math.round(diff / 60000);
+                            count++;
+                          }
+                        });
+                        const avgTime = count > 0 ? Math.round(totalMins / count) : 0;
+
+                        return (
+                          <>
+                            <div className="flex items-center gap-1.5"><History className="w-3.5 h-3.5 opacity-70" /> {daysText}</div>
+                            <div className="flex items-center gap-1.5"><Timer className="w-3.5 h-3.5 opacity-70" /> ~ {avgTime}m</div>
+                          </>
+                        )
+                      })()}
                     </div>
                   </div>
                 </CardContent>

@@ -19,7 +19,16 @@ export const useLogCardio = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (data: { intensity: string; duration: number; workoutId?: string }) => 
+    mutationFn: (data: { 
+      intensity: string; 
+      duration: number; 
+      workoutId?: string;
+      workoutLogId?: string;
+      type?: string;
+      targetDuration?: number;
+      startTime?: Date | string;
+      endTime?: Date | string;
+    }) => 
       CardioAPI.logCardio(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['today-cardio'] });

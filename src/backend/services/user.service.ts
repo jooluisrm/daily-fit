@@ -79,6 +79,7 @@ export class UserService {
     height?: number;
     weight?: number;
     gender?: string;
+    restTimeGoal?: number;
     phone?: string;
   }) {
     // Verificamos se o usuário existe
@@ -100,6 +101,7 @@ export class UserService {
         ...(data.height !== undefined && { height: data.height }),
         ...(data.weight !== undefined && { weight: data.weight }),
         ...(data.gender && { gender: data.gender }),
+        ...(data.restTimeGoal !== undefined && { restTimeGoal: data.restTimeGoal }),
       }
     });
 

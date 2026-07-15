@@ -26,6 +26,7 @@ export async function PUT(req: Request) {
       height: data.height !== undefined ? Number(data.height) : undefined,
       weight: data.weight !== undefined ? Number(data.weight) : undefined,
       gender: data.gender,
+      restTimeGoal: data.restTimeGoal !== undefined ? Number(data.restTimeGoal) : undefined,
       // phone: data.phone, // caso adicione campo phone no db no futuro
     });
 
@@ -40,6 +41,7 @@ export async function PUT(req: Request) {
         height: updatedUser.height,
         weight: updatedUser.weight,
         gender: updatedUser.gender,
+        restTimeGoal: updatedUser.restTimeGoal,
       }
     });
 

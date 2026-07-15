@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { Dumbbell, ChevronDown, ChevronUp, Save, TrendingUp, Loader2, MoreVertical, Edit2, PowerOff, Power, List } from "lucide-react"
+import { Dumbbell, ChevronDown, ChevronUp, Save, TrendingUp, Loader2, MoreVertical, Edit2, PowerOff, Power, List, CheckCircle2 } from "lucide-react"
 import Image from "next/image"
 import { CartesianGrid, Line, LineChart, XAxis, YAxis, Tooltip } from "recharts"
 import { ChartConfig, ChartContainer, ChartTooltipContent } from "@/components/ui/chart"
@@ -18,6 +18,7 @@ import { toast } from "sonner"
 interface ExerciseProps {
   workoutExercise: any
   isCompleted?: boolean
+  onSetComplete?: () => void
 }
 
 const chartConfig = {
@@ -27,7 +28,7 @@ const chartConfig = {
   }
 } satisfies ChartConfig
 
-export function ExerciseCard({ workoutExercise, isCompleted }: ExerciseProps) {
+export function ExerciseCard({ workoutExercise, isCompleted, onSetComplete }: ExerciseProps) {
   const workoutId = workoutExercise.workoutId
 
   const [isExpanded, setIsExpanded] = useState(false)
@@ -132,6 +133,14 @@ export function ExerciseCard({ workoutExercise, isCompleted }: ExerciseProps) {
         repsDone: Number(currentRepsInput)
       })
       toast.success(logOfToday ? `Série ${selectedSet} atualizada!` : `Série ${selectedSet} salva com sucesso!`)
+      if (!logOfToday && onSetComplete) {
+        onSetComplete()
+      }
+      
+      // Auto-advance if not the last set
+      if (!logOfToday && selectedSet < sets) {
+        setTimeout(() => setSelectedSet(selectedSet + 1), 500)
+      }
     } catch (error) {
       toast.error("Erro ao salvar série.")
     }
@@ -372,18 +381,24 @@ export function ExerciseCard({ workoutExercise, isCompleted }: ExerciseProps) {
               >
                 Média
               </button>
-              {setsArray.map((setNum) => (
-                <button
-                  key={setNum}
-                  onClick={() => setSelectedSet(setNum)}
-                  className={`flex-1 min-w-[80px] py-2.5 px-3 text-sm font-semibold rounded-lg transition-all whitespace-nowrap ${selectedSet === setNum
-                    ? "bg-primary text-primary-foreground shadow-md"
-                    : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50"
-                    }`}
-                >
-                  Série {setNum}
-                </button>
-              ))}
+              {setsArray.map((setNum) => {
+                const isSetDone = chartData && historyData[setNum]?.some((log: any) => log.date === todayStr);
+                return (
+                  <button
+                    key={setNum}
+                    onClick={() => setSelectedSet(setNum)}
+                    className={`flex-1 min-w-[80px] py-2.5 px-3 text-sm font-semibold rounded-lg transition-all whitespace-nowrap flex items-center justify-center gap-1.5 ${selectedSet === setNum
+                      ? "bg-primary text-primary-foreground shadow-md"
+                      : isSetDone 
+                        ? "text-emerald-400 hover:text-emerald-300 hover:bg-zinc-800/50" 
+                        : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50"
+                      }`}
+                  >
+                    Série {setNum}
+                    {isSetDone && <CheckCircle2 className="w-3.5 h-3.5" />}
+                  </button>
+                )
+              })}
             </div>
 
             {/* Área de Input (Apenas visível se uma série específica estiver selecionada) */}

@@ -3,9 +3,18 @@ import prisma from '@/src/lib/prisma';
 export class CardioService {
   /**
    * Loga a atividade de cardio para o dia atual. 
-   * Se já existir, atualiza. Se duration for 0, exclui.
+   * Se já existir, atualiza. Se duration for 0 e não houver target, exclui.
    */
-  static async logCardio(userId: string, data: { intensity: string; duration: number; workoutId?: string }) {
+  static async logCardio(userId: string, data: { 
+    intensity: string; 
+    duration: number; 
+    workoutId?: string;
+    workoutLogId?: string;
+    type?: string;
+    targetDuration?: number;
+    startTime?: Date;
+    endTime?: Date;
+  }) {
     const startOfDay = new Date();
     startOfDay.setHours(0, 0, 0, 0);
 
@@ -22,8 +31,8 @@ export class CardioService {
       }
     });
 
-    // Se a duração for 0, o usuário está marcando que "Não fez cardio hoje"
-    if (data.duration === 0) {
+    // Se a duração for 0 e não houver target, o usuário está marcando que "Não fez cardio hoje"
+    if (data.duration === 0 && !data.targetDuration) {
       if (existingLog) {
         await prisma.cardioLog.delete({
           where: { id: existingLog.id }
@@ -32,23 +41,28 @@ export class CardioService {
       return null;
     }
 
+    const logData = {
+      intensity: data.intensity,
+      duration: data.duration,
+      workoutId: data.workoutId,
+      workoutLogId: data.workoutLogId,
+      type: data.type || "Esteira",
+      targetDuration: data.targetDuration,
+      startTime: data.startTime,
+      endTime: data.endTime,
+    };
+
     if (existingLog) {
       return await prisma.cardioLog.update({
         where: { id: existingLog.id },
-        data: {
-          intensity: data.intensity,
-          duration: data.duration,
-          workoutId: data.workoutId
-        }
+        data: logData
       });
     }
 
     return await prisma.cardioLog.create({
       data: {
         userId,
-        intensity: data.intensity,
-        duration: data.duration,
-        workoutId: data.workoutId
+        ...logData
       }
     });
   }
