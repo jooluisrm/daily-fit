@@ -294,7 +294,7 @@ export function TreinoFocusView({ workoutId, exercises, onFinishAll, onClose }: 
 
   if (phase === 'CARDIO_PROMPT') {
     return (
-      <div className="fixed inset-0 bottom-16 md:bottom-0 z-40 flex flex-col bg-zinc-950 overflow-hidden shadow-2xl animate-in slide-in-from-bottom-4 duration-300">
+      <div className="fixed inset-0 z-[60] flex flex-col bg-zinc-950 overflow-hidden shadow-2xl animate-in slide-in-from-bottom-4 duration-300">
         <div className="absolute top-0 left-0 right-0 h-1.5 bg-zinc-900 z-50">
           <div className="h-full bg-emerald-500 w-full" />
         </div>
@@ -331,7 +331,7 @@ export function TreinoFocusView({ workoutId, exercises, onFinishAll, onClose }: 
 
   if (phase === 'CARDIO_ACTIVE') {
     return (
-      <div className="fixed inset-0 bottom-16 md:bottom-0 z-40 flex flex-col bg-zinc-950 overflow-hidden shadow-2xl animate-in slide-in-from-bottom-4 duration-300">
+      <div className="fixed inset-0 z-[60] flex flex-col bg-zinc-950 overflow-hidden shadow-2xl animate-in slide-in-from-bottom-4 duration-300">
         <div className="absolute top-0 left-0 right-0 h-1.5 bg-zinc-900 z-50">
           <div className="h-full bg-emerald-500 w-full" />
         </div>
@@ -414,7 +414,7 @@ export function TreinoFocusView({ workoutId, exercises, onFinishAll, onClose }: 
 
   return (
     <div className={cn(
-      "fixed inset-0 bottom-16 md:bottom-0 z-40 flex flex-col bg-zinc-950 overflow-hidden shadow-2xl animate-in slide-in-from-bottom-4 duration-300",
+      "fixed inset-0 z-[60] flex flex-col bg-zinc-950 overflow-hidden shadow-2xl animate-in slide-in-from-bottom-4 duration-300",
       isHistoryMode ? "ring-inset ring-2 ring-amber-500/20" : ""
     )}>
       {/* Progress Bar Top */}

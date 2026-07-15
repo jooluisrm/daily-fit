@@ -28,7 +28,7 @@ export default function RootLayout({
           <GlobalTimer />
           <PwaRegistry />
         </Providers>
-        <Toaster theme="dark" position="bottom-right" richColors />
+        <Toaster theme="dark" position="top-center" richColors />
         <Analytics />
       </body>
     </html>
