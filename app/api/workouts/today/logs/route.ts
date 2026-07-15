@@ -10,9 +10,10 @@ export async function GET(req: Request) {
     }
 
     const url = new URL(req.url);
-    const date = url.searchParams.get('date');
+    const startIso = url.searchParams.get('start');
+    const endIso = url.searchParams.get('end');
     
-    const logs = await WorkoutLogService.getAllTodayWorkoutLogs(session.user.id, date);
+    const logs = await WorkoutLogService.getAllTodayWorkoutLogs(session.user.id, startIso, endIso);
 
     return NextResponse.json(logs);
   } catch (error: any) {

@@ -4,17 +4,19 @@ export class WorkoutLogService {
   /**
    * Busca a sessão de treino de hoje.
    */
-  static async getTodayWorkoutLog(userId: string, workoutId: string, dateString?: string | null) {
-    const targetDate = dateString ? new Date(dateString) : new Date();
-    if (dateString) {
-      targetDate.setMinutes(targetDate.getMinutes() + targetDate.getTimezoneOffset());
+  static async getTodayWorkoutLog(userId: string, workoutId: string, startIso?: string | null, endIso?: string | null) {
+    let startOfDay: Date;
+    let endOfDay: Date;
+    
+    if (startIso && endIso) {
+      startOfDay = new Date(startIso);
+      endOfDay = new Date(endIso);
+    } else {
+      startOfDay = new Date();
+      startOfDay.setHours(0, 0, 0, 0);
+      endOfDay = new Date();
+      endOfDay.setHours(23, 59, 59, 999);
     }
-
-    const startOfDay = new Date(targetDate);
-    startOfDay.setHours(0, 0, 0, 0);
-
-    const endOfDay = new Date(targetDate);
-    endOfDay.setHours(23, 59, 59, 999);
 
     return await prisma.workoutLog.findFirst({
       where: {
@@ -31,17 +33,19 @@ export class WorkoutLogService {
   /**
    * Busca todas as sessões de treino de hoje para o usuário.
    */
-  static async getAllTodayWorkoutLogs(userId: string, dateString?: string | null) {
-    const targetDate = dateString ? new Date(dateString) : new Date();
-    if (dateString) {
-      targetDate.setMinutes(targetDate.getMinutes() + targetDate.getTimezoneOffset());
+  static async getAllTodayWorkoutLogs(userId: string, startIso?: string | null, endIso?: string | null) {
+    let startOfDay: Date;
+    let endOfDay: Date;
+    
+    if (startIso && endIso) {
+      startOfDay = new Date(startIso);
+      endOfDay = new Date(endIso);
+    } else {
+      startOfDay = new Date();
+      startOfDay.setHours(0, 0, 0, 0);
+      endOfDay = new Date();
+      endOfDay.setHours(23, 59, 59, 999);
     }
-
-    const startOfDay = new Date(targetDate);
-    startOfDay.setHours(0, 0, 0, 0);
-
-    const endOfDay = new Date(targetDate);
-    endOfDay.setHours(23, 59, 59, 999);
 
     return await prisma.workoutLog.findMany({
       where: {

@@ -12,9 +12,10 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     const resolvedParams = await params;
     const workoutId = resolvedParams.id;
     const url = new URL(req.url);
-    const date = url.searchParams.get('date');
+    const startIso = url.searchParams.get('start');
+    const endIso = url.searchParams.get('end');
     
-    const workoutLog = await WorkoutLogService.getTodayWorkoutLog(session.user.id, workoutId, date);
+    const workoutLog = await WorkoutLogService.getTodayWorkoutLog(session.user.id, workoutId, startIso, endIso);
 
     return NextResponse.json(workoutLog || null);
   } catch (error: any) {

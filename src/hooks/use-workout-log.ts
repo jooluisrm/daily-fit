@@ -1,18 +1,36 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { WorkoutLogAPI } from '../services/api/workout-log.api';
 
-export const useTodayWorkoutStatus = (workoutId: string | undefined, date?: string) => {
+const getLocalDayBounds = () => {
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
+  const end = new Date();
+  end.setHours(23, 59, 59, 999);
+  
+  // Use en-CA for guaranteed YYYY-MM-DD format in local time
+  const dateStr = new Date().toLocaleDateString('en-CA'); 
+  
+  return { 
+    startIso: start.toISOString(), 
+    endIso: end.toISOString(),
+    dateStr
+  };
+};
+
+export const useTodayWorkoutStatus = (workoutId: string | undefined) => {
+  const { startIso, endIso, dateStr } = getLocalDayBounds();
   return useQuery({
-    queryKey: ['workout-status', workoutId, date],
-    queryFn: () => WorkoutLogAPI.getTodayStatus(workoutId!, date),
+    queryKey: ['workout-status', workoutId, dateStr],
+    queryFn: () => WorkoutLogAPI.getTodayStatus(workoutId!, startIso, endIso),
     enabled: !!workoutId,
   });
 };
 
-export const useTodayAllWorkoutLogs = (date?: string) => {
+export const useTodayAllWorkoutLogs = () => {
+  const { startIso, endIso, dateStr } = getLocalDayBounds();
   return useQuery({
-    queryKey: ['today-all-workout-logs', date],
-    queryFn: () => WorkoutLogAPI.getTodayAllLogs(date),
+    queryKey: ['today-all-workout-logs', dateStr],
+    queryFn: () => WorkoutLogAPI.getTodayAllLogs(startIso, endIso),
   });
 };
 

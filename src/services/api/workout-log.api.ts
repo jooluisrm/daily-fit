@@ -12,14 +12,14 @@ export type WorkoutLog = {
 };
 
 export const WorkoutLogAPI = {
-  getTodayStatus: async (workoutId: string, date?: string): Promise<WorkoutLog | null> => {
-    const url = date ? `/workouts/${workoutId}/status?date=${date}` : `/workouts/${workoutId}/status`;
+  getTodayStatus: async (workoutId: string, startIso?: string, endIso?: string): Promise<WorkoutLog | null> => {
+    const url = (startIso && endIso) ? `/workouts/${workoutId}/status?start=${startIso}&end=${endIso}` : `/workouts/${workoutId}/status`;
     const response = await api.get(url);
     return response.data;
   },
 
-  getTodayAllLogs: async (date?: string): Promise<(WorkoutLog & { workout: { id: string, name: string } })[]> => {
-    const url = date ? `/workouts/today/logs?date=${date}` : `/workouts/today/logs`;
+  getTodayAllLogs: async (startIso?: string, endIso?: string): Promise<(WorkoutLog & { workout: { id: string, name: string } })[]> => {
+    const url = (startIso && endIso) ? `/workouts/today/logs?start=${startIso}&end=${endIso}` : `/workouts/today/logs`;
     const response = await api.get(url);
     return response.data;
   },
