@@ -42,12 +42,20 @@ export async function POST(req: Request) {
     }
 
     // Se vier uma data, usamos ela, senão usamos hoje
-    const targetDate = date ? new Date(date) : new Date();
-    
-    // Zera a hora para não ter múltiplos registros no mesmo dia facilmente
-    targetDate.setHours(0, 0, 0, 0);
-    const endOfDay = new Date(targetDate);
-    endOfDay.setHours(23, 59, 59, 999);
+    let targetDate: Date;
+    let endOfDay: Date;
+
+    if (date) {
+      targetDate = new Date(date);
+      targetDate.setHours(0, 0, 0, 0);
+      endOfDay = new Date(targetDate);
+      endOfDay.setHours(23, 59, 59, 999);
+    } else {
+      const now = new Date();
+      const spDateStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(now);
+      targetDate = new Date(`${spDateStr}T00:00:00.000-03:00`);
+      endOfDay = new Date(`${spDateStr}T23:59:59.999-03:00`);
+    }
 
     // Verifica se já existe um registro para o mesmo dia
     const existingLog = await prisma.weightLog.findFirst({

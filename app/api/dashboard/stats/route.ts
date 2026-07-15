@@ -10,8 +10,14 @@ export async function GET(req: Request) {
     }
 
     const userId = session.user.id;
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    
+    // Ajuste de Fuso Horário para o Brasil (UTC-3)
+    // Na Vercel (servidor), o Date() nativo retorna o dia em UTC.
+    const now = new Date();
+    const spDateStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(now);
+    
+    // Força a data de "hoje" a ser exatamente 00:00:00 no fuso de Brasília
+    const today = new Date(`${spDateStr}T00:00:00.000-03:00`);
 
     // Encontrar o Domingo da semana atual para que todas as estatísticas fiquem sincronizadas
     const targetDate = new Date(today);
@@ -86,7 +92,12 @@ export async function GET(req: Request) {
 
     // Processar Streak (Semana Atual - Domingo a Sábado)
     const streak = [];
-    const logDates = new Set(workoutLogs.map(log => log.date.toISOString().split('T')[0]));
+    
+    // Transforma as datas dos logs (que estão em UTC no banco) para a data real no Brasil
+    const logDates = new Set(workoutLogs.map(log => {
+      const brDate = new Date(log.date.getTime() - (3 * 60 * 60 * 1000)); // Aplica -03:00 manual
+      return brDate.toISOString().split('T')[0];
+    }));
 
     // today já foi declarado no início do arquivo
     // Reutilizar o targetDate (Domingo) que já calculamos no início

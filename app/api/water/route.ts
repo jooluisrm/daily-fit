@@ -9,10 +9,14 @@ export async function GET() {
       return NextResponse.json({ error: 'Não autorizado.' }, { status: 401 });
     }
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const endOfDay = new Date(today);
-    endOfDay.setHours(23, 59, 59, 999);
+    const now = new Date();
+    const spDateStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(now);
+    
+    // Início do dia no Brasil
+    const today = new Date(`${spDateStr}T00:00:00.000-03:00`);
+    
+    // Fim do dia no Brasil
+    const endOfDay = new Date(`${spDateStr}T23:59:59.999-03:00`);
 
     // Buscar logs de hoje
     const logs = await prisma.waterLog.findMany({
