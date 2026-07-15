@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef } from "react"
 import { useTimerStore } from "@/src/store/use-timer-store"
 import { playBeep } from "@/src/lib/audio"
+import { sendPushNotification } from "@/src/lib/notifications"
 import { usePathname, useRouter } from "next/navigation"
 import { Timer, CheckCircle2 } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -33,6 +34,7 @@ export function GlobalTimer() {
   useEffect(() => {
     if (isResting && restTimeLeft === 0 && !hasBeeped.current) {
       playBeep()
+      sendPushNotification('Descanso Finalizado!', 'Prepare-se para a próxima série.')
       hasBeeped.current = true
     } else if (restTimeLeft > 0) {
       hasBeeped.current = false

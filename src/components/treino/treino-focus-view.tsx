@@ -15,6 +15,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { TreinoHistoryDialog } from "./treino-history-dialog"
 import { TreinoSummaryDialog } from "./treino-summary-dialog"
 import { useSession } from "next-auth/react"
+import { requestNotificationPermission } from "@/src/lib/notifications"
 
 interface TreinoFocusViewProps {
   workoutId: string
@@ -256,6 +257,8 @@ export function TreinoFocusView({ workoutId, exercises, onFinishAll, onClose }: 
       if (currentSet === currentExercise.sets && currentIndex === activeExercises.length - 1) {
         setPhase('CARDIO_PROMPT')
       } else {
+        // Solicita permissão de notificação (o navegador só pergunta se ainda não tiver)
+        requestNotificationPermission()
         startTimer(restTimeGoal, workoutId) // Usa o tempo de descanso configurado pelo usuário
       }
     } catch (error) {

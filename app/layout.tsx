@@ -5,12 +5,14 @@ import { Providers } from "./providers";
 import { Toaster } from "sonner";
 import { Analytics } from "@vercel/analytics/next"
 import { GlobalTimer } from "@/src/components/layout/global-timer";
+import { PwaRegistry } from "@/src/components/pwa-registry";
 
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: "Daily Fit",
   description: "Acompanhe seu treino e dieta de forma inteligente.",
+  manifest: "/manifest.json",
 };
 
 export default function RootLayout({
@@ -24,6 +26,7 @@ export default function RootLayout({
         <Providers>
           {children}
           <GlobalTimer />
+          <PwaRegistry />
         </Providers>
         <Toaster theme="dark" position="bottom-right" richColors />
         <Analytics />
