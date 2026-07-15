@@ -1,7 +1,8 @@
 "use client"
 
-import { useEffect } from "react"
+import { useEffect, useState, useRef } from "react"
 import { useTimerStore } from "@/src/store/use-timer-store"
+import { playBeep } from "@/src/lib/audio"
 import { usePathname, useRouter } from "next/navigation"
 import { Timer, CheckCircle2 } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -10,6 +11,9 @@ export function GlobalTimer() {
   const { isResting, restTimeLeft, tick, stopTimer } = useTimerStore()
   const pathname = usePathname()
   const router = useRouter()
+  
+  // Ref para controlar se já tocou o som nesta contagem
+  const hasBeeped = useRef(false)
 
   useEffect(() => {
     let interval: NodeJS.Timeout | null = null
@@ -24,6 +28,16 @@ export function GlobalTimer() {
       if (interval) clearInterval(interval)
     }
   }, [isResting, tick])
+
+  // Efeito para tocar o som quando chegar a 0
+  useEffect(() => {
+    if (isResting && restTimeLeft === 0 && !hasBeeped.current) {
+      playBeep()
+      hasBeeped.current = true
+    } else if (restTimeLeft > 0) {
+      hasBeeped.current = false
+    }
+  }, [isResting, restTimeLeft])
 
   // Se não estiver descansando, não exibe nada
   if (!isResting) return null

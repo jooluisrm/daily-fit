@@ -4,6 +4,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { User, Activity, AlertCircle } from "lucide-react"
 import { PerfilConta } from "@/src/components/perfil/perfil-conta"
 import { PerfilCorpo } from "@/src/components/perfil/perfil-corpo"
+import { PerfilTreino } from "@/src/components/perfil/perfil-treino"
 import { useSession } from "next-auth/react"
 
 export default function PerfilPage() {
@@ -45,6 +46,13 @@ export default function PerfilPage() {
             <Activity className="w-5 h-5 mr-2 hidden sm:inline-block" />
             Corpo e Medidas
           </TabsTrigger>
+          <TabsTrigger 
+            value="treino"
+            className="flex-1 py-3 rounded-lg text-base font-semibold transition-all data-[state=active]:!bg-primary data-[state=active]:!text-primary-foreground data-[state=active]:!shadow-md text-zinc-400 hover:text-zinc-200"
+          >
+            <Activity className="w-5 h-5 mr-2 hidden sm:inline-block" />
+            Config Treino
+          </TabsTrigger>
         </TabsList>
         
         <TabsContent value="conta" className="mt-0 outline-none">
@@ -53,6 +61,10 @@ export default function PerfilPage() {
         
         <TabsContent value="corpo" className="mt-0 outline-none">
           <PerfilCorpo />
+        </TabsContent>
+        
+        <TabsContent value="treino" className="mt-0 outline-none">
+          <PerfilTreino />
         </TabsContent>
       </Tabs>
     </div>

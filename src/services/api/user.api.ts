@@ -7,6 +7,7 @@ export interface UpdateProfileData {
   height?: number | '';
   weight?: number | '';
   gender?: string;
+  restTimeGoal?: number | '';
 }
 
 export const UserAPI = {

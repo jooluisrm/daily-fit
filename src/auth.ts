@@ -47,6 +47,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           weight: user.weight,
           gender: user.gender,
           image: user.image,
+          restTimeGoal: user.restTimeGoal,
         };
       },
     }),
@@ -61,6 +62,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         token.height = (user as any).height;
         token.weight = (user as any).weight;
         token.gender = (user as any).gender;
+        token.restTimeGoal = (user as any).restTimeGoal;
         token.picture = user.image; // O NextAuth por padrão usa token.picture para a imagem
         token.isProfileComplete = !!(
           (user as any).firstName &&
@@ -79,6 +81,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         if (session.height !== undefined) token.height = session.height;
         if (session.weight !== undefined) token.weight = session.weight;
         if (session.gender !== undefined) token.gender = session.gender;
+        if (session.restTimeGoal !== undefined) token.restTimeGoal = session.restTimeGoal;
         if (session.image !== undefined) token.picture = session.image; // Atualiza a foto
       }
       
@@ -93,6 +96,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         (session.user as any).height = token.height;
         (session.user as any).weight = token.weight;
         (session.user as any).gender = token.gender;
+        (session.user as any).restTimeGoal = token.restTimeGoal;
         (session.user as any).isProfileComplete = token.isProfileComplete;
         if (token.picture) session.user.image = token.picture as string; // Passa a imagem pro user
       }

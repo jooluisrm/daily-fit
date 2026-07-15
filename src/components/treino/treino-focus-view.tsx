@@ -14,6 +14,7 @@ import { cn } from "@/lib/utils"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { TreinoHistoryDialog } from "./treino-history-dialog"
 import { TreinoSummaryDialog } from "./treino-summary-dialog"
+import { useSession } from "next-auth/react"
 
 interface TreinoFocusViewProps {
   workoutId: string
@@ -23,6 +24,10 @@ interface TreinoFocusViewProps {
 }
 
 export function TreinoFocusView({ workoutId, exercises, onFinishAll, onClose }: TreinoFocusViewProps) {
+  const { data: session } = useSession()
+  const user = session?.user as any
+  const restTimeGoal = user?.restTimeGoal || 90
+
   const activeExercises = useMemo(() => exercises.filter((ex) => ex.isActive), [exercises])
   const [currentIndex, setCurrentIndex] = useState(0)
   const [currentSet, setCurrentSet] = useState(1)
@@ -178,10 +183,16 @@ export function TreinoFocusView({ workoutId, exercises, onFinishAll, onClose }: 
     }
   }, [currentIndex, currentSet, currentExercise])
 
-  // Auto-advance when rest finishes while looking at this screen
+  // Auto-advance 10 seconds after rest finishes (if not manually dismissed)
   useEffect(() => {
+    let timeout: NodeJS.Timeout
     if (isResting && restTimeLeft <= 0) {
-      handleRestFinished()
+      timeout = setTimeout(() => {
+        handleRestFinished()
+      }, 10000)
+    }
+    return () => {
+      if (timeout) clearTimeout(timeout)
     }
   }, [isResting, restTimeLeft])
 
@@ -245,7 +256,7 @@ export function TreinoFocusView({ workoutId, exercises, onFinishAll, onClose }: 
       if (currentSet === currentExercise.sets && currentIndex === activeExercises.length - 1) {
         setPhase('CARDIO_PROMPT')
       } else {
-        startTimer(90, workoutId) // Usando 90s fixo por enquanto. Idealmente, pega do usuário
+        startTimer(restTimeGoal, workoutId) // Usa o tempo de descanso configurado pelo usuário
       }
     } catch (error) {
       toast.error("Erro ao salvar série.")
@@ -649,7 +660,8 @@ export function TreinoFocusView({ workoutId, exercises, onFinishAll, onClose }: 
                     stroke="currentColor" strokeWidth="8" fill="none"
                     className="text-primary transition-all duration-1000 ease-linear"
                     strokeDasharray="553"
-                    strokeDashoffset={553 - (553 * restTimeLeft) / 90}
+                    strokeDashoffset={553 - (553 * Math.min(restTimeLeft, restTimeGoal)) / restTimeGoal}
+                    strokeLinecap="round"
                     transform="rotate(-90 96 96)"
                   />
                 </svg>
@@ -675,12 +687,26 @@ export function TreinoFocusView({ workoutId, exercises, onFinishAll, onClose }: 
               </div>
 
               <Button
-                variant="ghost"
+                variant={restTimeLeft === 0 ? "default" : "ghost"}
                 onClick={handleRestFinished}
-                className="mt-6 text-zinc-500 hover:text-white hover:bg-zinc-800/50"
+                className={cn(
+                  "mt-6 transition-all duration-300",
+                  restTimeLeft === 0 
+                    ? "w-full h-14 bg-primary text-white hover:bg-primary/90 text-lg font-bold shadow-[0_0_20px_rgba(var(--primary),0.3)] animate-in slide-in-from-bottom-2" 
+                    : "text-zinc-500 hover:text-white hover:bg-zinc-800/50"
+                )}
               >
-                <SkipForward className="w-4 h-4 mr-2" />
-                Pular Descanso
+                {restTimeLeft === 0 ? (
+                  <>
+                    <CheckCircle2 className="w-5 h-5 mr-2" />
+                    Continuar Treino
+                  </>
+                ) : (
+                  <>
+                    <SkipForward className="w-4 h-4 mr-2" />
+                    Pular Descanso
+                  </>
+                )}
               </Button>
             </div>
           )}
