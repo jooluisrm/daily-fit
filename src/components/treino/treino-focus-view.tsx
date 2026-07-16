@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Dumbbell, Save, CheckCircle2, ChevronLeft, ChevronRight, Activity, SkipForward, Loader2, AlertTriangle, Play, FastForward, Minimize2, Trophy, History, Plus, Minus, NotebookIcon } from "lucide-react"
+import { Dumbbell, Save, CheckCircle2, ChevronLeft, ChevronRight, Activity, SkipForward, Loader2, AlertTriangle, Play, FastForward, Minimize2, Trophy, History, Plus, Minus, NotebookIcon, Lock, Unlock } from "lucide-react"
 import { useLogExercise } from "@/src/hooks/use-exercise"
 import { useLogCardio } from "@/src/hooks/use-cardio"
 import { useUpdateWorkoutStatus } from "@/src/hooks/use-workout-log"
@@ -80,6 +80,11 @@ export function TreinoFocusView({ workoutId, exercises, onFinishAll, onClose }: 
   const [isViewingHistory, setIsViewingHistory] = useState(false)
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false)
   const [isSummaryModalOpen, setIsSummaryModalOpen] = useState(false)
+
+  const [touchStartX, setTouchStartX] = useState<number | null>(null)
+  const [touchEndX, setTouchEndX] = useState<number | null>(null)
+  const [isSwipeLocked, setIsSwipeLocked] = useState(false)
+  const [shakeLock, setShakeLock] = useState(false)
 
   const { isResting, restTimeLeft, startTimer, stopTimer, addTime } = useTimerStore()
 
@@ -351,6 +356,52 @@ export function TreinoFocusView({ workoutId, exercises, onFinishAll, onClose }: 
       }
     } catch (error) {
       console.error("Erro ao salvar série.", error)
+    }
+  }
+
+  const onTouchStart = (e: React.TouchEvent) => {
+    setTouchEndX(null)
+    setTouchStartX(e.targetTouches[0].clientX)
+  }
+
+  const onTouchMove = (e: React.TouchEvent) => {
+    setTouchEndX(e.targetTouches[0].clientX)
+  }
+
+  const onTouchEnd = () => {
+    if (!touchStartX || !touchEndX) return
+    const distance = touchStartX - touchEndX
+    const minSwipeDistance = 50
+
+    if (isSwipeLocked) {
+      if (Math.abs(distance) > minSwipeDistance) {
+        setShakeLock(true)
+        setTimeout(() => setShakeLock(false), 400)
+      }
+      return
+    }
+    const isLeftSwipe = distance > minSwipeDistance
+    const isRightSwipe = distance < -minSwipeDistance
+
+    if (isLeftSwipe) {
+      advanceToNextSet()
+    }
+    if (isRightSwipe) {
+      let nextI = currentIndex
+      let nextS = currentSet
+      if (currentSet > 1) { 
+        nextS = currentSet - 1 
+      } else if (currentIndex > 0) { 
+        nextI = currentIndex - 1
+        nextS = activeExercises[currentIndex - 1].sets 
+      } else { 
+        return 
+      }
+      if (checkIsSetCompleted(nextI, nextS)) { 
+        setCurrentIndex(nextI); setCurrentSet(nextS); setIsViewingHistory(true) 
+      } else { 
+        setCurrentIndex(nextI); setCurrentSet(nextS); setIsViewingHistory(false) 
+      }
     }
   }
 
@@ -632,73 +683,14 @@ export function TreinoFocusView({ workoutId, exercises, onFinishAll, onClose }: 
         />
       </div>
 
-      {/* Header Info */}
-      <div className="p-4 sm:p-6 pb-0 flex justify-between items-center z-50 relative bg-gradient-to-b from-zinc-950 to-transparent">
-        <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={onClose} className="text-zinc-400 hover:text-white hover:bg-zinc-800/50 rounded-full h-10 w-10">
-            <Minimize2 className="w-5 h-5" />
-          </Button>
-        </div>
-        <button
-          onClick={() => setIsSummaryModalOpen(true)}
-          className="text-sm font-semibold text-zinc-300 bg-zinc-900/80 hover:bg-zinc-800 hover:text-white px-4 py-1.5 rounded-full border border-zinc-800 backdrop-blur-sm transition-all shadow-sm active:scale-95 flex items-center gap-2"
-        >
-          {Math.round(progressPercent)}% Concluído
-        </button>
-      </div>
-
-      {/* Exercises Timeline */}
-      <div className="relative z-50 flex justify-center px-4 -mt-2 mb-2">
-        <div className="flex gap-2 items-center bg-zinc-900/60 backdrop-blur-md p-1.5 rounded-full border border-zinc-800/80 overflow-x-auto max-w-full no-scrollbar">
-          {activeExercises.map((ex, idx) => {
-            const isPast = idx < currentIndex
-            const isCurrent = idx === currentIndex
-
-            return (
-              <div
-                key={ex.id}
-                onClick={() => {
-                  let targetSet = 1;
-                  let allCompleted = true;
-                  for (let s = 1; s <= ex.sets; s++) {
-                    if (!checkIsSetCompleted(idx, s)) {
-                      targetSet = s;
-                      allCompleted = false;
-                      break;
-                    }
-                  }
-                  if (allCompleted) {
-                    targetSet = ex.sets;
-                  }
-                  setCurrentIndex(idx);
-                  setCurrentSet(targetSet);
-                  setIsViewingHistory(allCompleted);
-                }}
-                className={cn(
-                  "relative rounded-full flex-shrink-0 transition-all duration-300 flex items-center justify-center overflow-hidden cursor-pointer",
-                  isCurrent ? "w-12 h-12 ring-2 ring-primary ring-offset-2 ring-offset-zinc-950 opacity-100 shadow-[0_0_15px_rgba(var(--primary),0.4)] z-10" : "w-10 h-10 opacity-50 grayscale hover:opacity-80 bg-zinc-800"
-                )}
-              >
-                {ex.exercise.imageUrl ? (
-                  <img src={ex.exercise.imageUrl} alt={ex.exercise.name} className="w-full h-full object-cover" />
-                ) : (
-                  <div className="w-full h-full bg-zinc-800 flex items-center justify-center">
-                    <Dumbbell className={isCurrent ? (isHistoryMode ? "w-6 h-6 text-amber-500" : "w-6 h-6 text-primary") : "w-5 h-5 text-zinc-500"} />
-                  </div>
-                )}
-                {isPast && (
-                  <div className="absolute inset-0 bg-primary/80 backdrop-blur-sm flex items-center justify-center">
-                    <CheckCircle2 className="w-5 h-5 text-white" />
-                  </div>
-                )}
-              </div>
-            )
-          })}
-        </div>
-      </div>
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col relative z-10 overflow-hidden">
+      <div 
+        className="flex-1 flex flex-col relative z-10 overflow-hidden select-none"
+        onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
+        onTouchEnd={onTouchEnd}
+      >
 
         {/* Background Image */}
         <div className="absolute inset-0 z-0">
@@ -719,9 +711,98 @@ export function TreinoFocusView({ workoutId, exercises, onFinishAll, onClose }: 
         </div>
 
         {/* Content */}
-        <div className="flex-1 z-10 flex flex-col justify-center px-6 sm:px-12 pt-8">
-          <div className="text-center mb-8">
-            <h2 className="text-3xl sm:text-5xl font-black text-white mb-4 drop-shadow-xl tracking-tight">
+        <div className="flex-1 z-10 flex flex-col justify-between px-6 sm:px-12 py-6">
+          {/* Top Bar (Minimize, Timeline, Progress) */}
+          <div className="relative z-50 flex justify-between items-center w-full px-4 mb-2">
+            
+            {/* Minimize Button */}
+            <Button variant="ghost" size="icon" onClick={onClose} className="text-zinc-400 hover:text-white hover:bg-zinc-800/50 rounded-full h-12 w-12 shrink-0">
+              <Minimize2 className="w-5 h-5" />
+            </Button>
+
+            {/* Exercises Timeline */}
+            <div className="flex gap-2 items-center bg-zinc-900/60 backdrop-blur-md p-1.5 rounded-full border border-zinc-800/80 overflow-x-auto max-w-full no-scrollbar mx-2">
+                {activeExercises.map((ex, idx) => {
+                  const isPast = idx < currentIndex
+                  const isCurrent = idx === currentIndex
+
+                  return (
+                    <div
+                      key={ex.id}
+                      onClick={() => {
+                        let targetSet = 1;
+                        let allCompleted = true;
+                        for (let s = 1; s <= ex.sets; s++) {
+                          if (!checkIsSetCompleted(idx, s)) {
+                            targetSet = s;
+                            allCompleted = false;
+                            break;
+                          }
+                        }
+                        if (allCompleted) {
+                          targetSet = ex.sets;
+                        }
+                        setCurrentIndex(idx);
+                        setCurrentSet(targetSet);
+                        setIsViewingHistory(allCompleted);
+                      }}
+                      className={cn(
+                        "relative rounded-full flex-shrink-0 transition-all duration-300 flex items-center justify-center overflow-hidden cursor-pointer",
+                        isCurrent ? "w-12 h-12 ring-2 ring-primary ring-offset-2 ring-offset-zinc-950 opacity-100 shadow-[0_0_15px_rgba(var(--primary),0.4)] z-10" : "w-10 h-10 opacity-50 grayscale hover:opacity-80 bg-zinc-800"
+                      )}
+                    >
+                      {ex.exercise.imageUrl ? (
+                        <img src={ex.exercise.imageUrl} alt={ex.exercise.name} className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="w-full h-full bg-zinc-800 flex items-center justify-center">
+                          <Dumbbell className={isCurrent ? (isHistoryMode ? "w-6 h-6 text-amber-500" : "w-6 h-6 text-primary") : "w-5 h-5 text-zinc-500"} />
+                        </div>
+                      )}
+                      {isPast && (
+                        <div className="absolute inset-0 bg-primary/80 backdrop-blur-sm flex items-center justify-center">
+                          <CheckCircle2 className="w-5 h-5 text-white" />
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            
+            {/* Circular Progress Button */}
+            <button 
+              onClick={() => setIsSummaryModalOpen(true)}
+              className="relative w-12 h-12 rounded-full flex items-center justify-center bg-zinc-900/60 backdrop-blur-md border border-zinc-800/80 transition-all hover:bg-zinc-800 active:scale-95 shrink-0"
+            >
+              <svg className="absolute inset-0 w-full h-full -rotate-90" viewBox="0 0 48 48">
+                <circle cx="24" cy="24" r="20" stroke="currentColor" strokeWidth="3" fill="none" className="text-zinc-800/50" />
+                <circle 
+                  cx="24" cy="24" r="20" 
+                  stroke="currentColor" 
+                  strokeWidth="3" 
+                  fill="none" 
+                  className={cn(
+                    "transition-all duration-1000 ease-out", 
+                    progressPercent < 34 ? "text-red-500" : progressPercent < 67 ? "text-amber-500" : "text-emerald-500"
+                  )} 
+                  strokeDasharray="126" 
+                  strokeDashoffset={126 - (126 * progressPercent) / 100} 
+                  strokeLinecap="round" 
+                />
+              </svg>
+              <div className="relative z-10 flex items-center justify-center">
+                {progressPercent >= 100 ? (
+                  <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+                ) : (
+                  <span className="text-[11px] font-bold text-white">{Math.round(progressPercent)}%</span>
+                )}
+              </div>
+            </button>
+          </div>
+
+          {/* Middle Content */}
+          <div className="flex flex-col justify-center flex-1 my-2">
+            <div className="text-center mb-8">
+              <h2 className="text-3xl sm:text-5xl font-black text-white mb-4 drop-shadow-xl tracking-tight">
               {currentExercise.exercise.name}
             </h2>
             <div className="flex items-center justify-center gap-2 sm:gap-3 mt-4">
@@ -918,22 +999,43 @@ export function TreinoFocusView({ workoutId, exercises, onFinishAll, onClose }: 
             </Button>
           </div>
         )}
-      </div>
-    </div>
+        </div>
 
-    {/* Navigation Footer */}
-    <div className="p-4 bg-zinc-950 border-t border-zinc-900 flex justify-between items-center z-10 relative">
-      <Button variant="secondary" onClick={() => {
-        let nextI = currentIndex
-        let nextS = currentSet
-        if (currentSet > 1) { nextS = currentSet - 1 } else if (currentIndex > 0) { nextI = currentIndex - 1; nextS = activeExercises[currentIndex - 1].sets } else { return }
-        if (checkIsSetCompleted(nextI, nextS)) { setCurrentIndex(nextI); setCurrentSet(nextS); setIsViewingHistory(true) } else { setCurrentIndex(nextI); setCurrentSet(nextS); setIsViewingHistory(false) }
-      }} disabled={currentIndex === 0 && currentSet === 1} className="bg-zinc-900/80 hover:bg-zinc-800 text-zinc-300 border border-zinc-800 rounded-xl px-5 h-12">
-        <ChevronLeft className="w-5 h-5 mr-2 text-zinc-500" />Anterior
-      </Button>
-      <Button variant="secondary" onClick={advanceToNextSet} className="bg-zinc-900/80 hover:bg-zinc-800 text-zinc-300 border border-zinc-800 rounded-xl px-5 h-12">
-        Pular<ChevronRight className="w-5 h-5 ml-2 text-zinc-500" />
-      </Button>
+        {/* Swipe Indicator & Lock (Integrated into main content) */}
+        <div className="mt-auto flex justify-center items-center gap-8 pb-8">
+          <div className="flex flex-col items-center justify-center opacity-50">
+            <ChevronLeft className="w-6 h-6 text-zinc-500 animate-[pulse_2s_ease-in-out_infinite]" />
+          </div>
+          
+          <style>{`
+            @keyframes shakeLock {
+              0%, 100% { transform: translateX(0); }
+              20% { transform: translateX(-4px) rotate(-4deg); }
+              40% { transform: translateX(4px) rotate(4deg); }
+              60% { transform: translateX(-4px) rotate(-4deg); }
+              80% { transform: translateX(4px) rotate(4deg); }
+            }
+          `}</style>
+          <Button 
+            variant="secondary" 
+            onClick={() => setIsSwipeLocked(!isSwipeLocked)}
+            className={cn(
+              "rounded-full w-14 h-14 border-2 flex items-center justify-center transition-all shadow-lg",
+              isSwipeLocked 
+                ? "bg-red-500/10 border-red-500/50 text-red-500 hover:bg-red-500/20" 
+                : "bg-emerald-500/10 border-emerald-500/50 text-emerald-500 hover:bg-emerald-500/20",
+              shakeLock ? "animate-[shakeLock_0.4s_ease-in-out]" : ""
+            )}
+          >
+            {isSwipeLocked ? <Lock className="w-6 h-6" /> : <Unlock className="w-6 h-6" />}
+          </Button>
+
+          <div className="flex flex-col items-center justify-center opacity-50">
+            <ChevronRight className="w-6 h-6 text-zinc-500 animate-[pulse_2s_ease-in-out_infinite]" />
+          </div>
+        </div>
+
+      </div>
     </div>
 
     <TreinoHistoryDialog

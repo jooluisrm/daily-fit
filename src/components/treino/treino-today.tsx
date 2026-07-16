@@ -654,20 +654,30 @@ export function TreinoToday() {
           <h2 className="text-xl font-semibold text-white">
             Exercícios {exercises ? `(${exercises.filter(ex => ex.isActive).length})` : ""}
           </h2>
-          <div className="flex bg-zinc-900 border border-zinc-800 rounded-lg p-1">
+          <div className="flex bg-zinc-950/80 p-1.5 rounded-2xl border border-zinc-800/80 shadow-inner gap-1">
             <button
               onClick={() => toggleViewMode('focus')}
-              className={`p-1.5 rounded-md transition-colors ${viewMode === 'focus' ? 'bg-zinc-800 text-white' : 'text-zinc-500 hover:text-zinc-300'}`}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all ${
+                viewMode === 'focus' 
+                  ? 'bg-primary text-white shadow-[0_0_15px_rgba(var(--primary),0.5)]' 
+                  : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50'
+              }`}
               title="Modo Foco"
             >
-              <Focus className="w-4 h-4" />
+              <Focus className={`w-4 h-4 ${viewMode === 'focus' ? 'animate-[pulse_2s_ease-in-out_infinite]' : ''}`} />
+              Foco
             </button>
             <button
               onClick={() => toggleViewMode('list')}
-              className={`p-1.5 rounded-md transition-colors ${viewMode === 'list' ? 'bg-zinc-800 text-white' : 'text-zinc-500 hover:text-zinc-300'}`}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all ${
+                viewMode === 'list' 
+                  ? 'bg-zinc-800 text-white shadow-sm' 
+                  : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50'
+              }`}
               title="Modo Lista"
             >
               <List className="w-4 h-4" />
+              Lista
             </button>
           </div>
         </div>
