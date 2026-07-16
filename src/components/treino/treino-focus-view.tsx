@@ -657,8 +657,25 @@ export function TreinoFocusView({ workoutId, exercises, onFinishAll, onClose }: 
             return (
               <div
                 key={ex.id}
+                onClick={() => {
+                  let targetSet = 1;
+                  let allCompleted = true;
+                  for (let s = 1; s <= ex.sets; s++) {
+                    if (!checkIsSetCompleted(idx, s)) {
+                      targetSet = s;
+                      allCompleted = false;
+                      break;
+                    }
+                  }
+                  if (allCompleted) {
+                    targetSet = ex.sets;
+                  }
+                  setCurrentIndex(idx);
+                  setCurrentSet(targetSet);
+                  setIsViewingHistory(allCompleted);
+                }}
                 className={cn(
-                  "relative rounded-full flex-shrink-0 transition-all duration-300 flex items-center justify-center overflow-hidden",
+                  "relative rounded-full flex-shrink-0 transition-all duration-300 flex items-center justify-center overflow-hidden cursor-pointer",
                   isCurrent ? "w-12 h-12 ring-2 ring-primary ring-offset-2 ring-offset-zinc-950 opacity-100 shadow-[0_0_15px_rgba(var(--primary),0.4)] z-10" : "w-10 h-10 opacity-50 grayscale hover:opacity-80 bg-zinc-800"
                 )}
               >
@@ -716,8 +733,12 @@ export function TreinoFocusView({ workoutId, exercises, onFinishAll, onClose }: 
                 return (
                   <div
                     key={setNum}
+                    onClick={() => {
+                      setCurrentSet(setNum)
+                      setIsViewingHistory(isCompleted)
+                    }}
                     className={cn(
-                      "w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center font-bold text-sm sm:text-base transition-all duration-300",
+                      "w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center font-bold text-sm sm:text-base transition-all duration-300 cursor-pointer",
                       isCompleted && !isCurrent ? (isHistoryMode ? "bg-amber-600 text-white shadow-[0_0_15px_rgba(245,158,11,0.5)]" : "bg-primary text-white shadow-[0_0_15px_rgba(var(--primary),0.5)]") : (!isCurrent ? "bg-zinc-900/80 text-zinc-500 backdrop-blur-md" : ""),
                       isCurrent ? (isHistoryMode ? "bg-amber-600 text-white ring-4 ring-amber-500/30 scale-110 shadow-[0_0_20px_rgba(245,158,11,0.8)]" : "border-2 border-primary text-primary bg-primary/10 scale-110") : "border border-zinc-800"
                     )}

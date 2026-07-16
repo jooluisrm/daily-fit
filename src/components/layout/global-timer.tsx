@@ -14,28 +14,50 @@ export function GlobalTimer() {
   
   // Ref para controlar se já tocou o som nesta contagem
   const hasBeeped = useRef(false)
-  const audioRef = useRef<HTMLAudioElement | null>(null)
+  const wakeLockRef = useRef<any>(null)
 
-  // Desbloqueia o áudio na primeira interação do usuário para permitir autoplay depois
-  useEffect(() => {
-    const unlockAudio = () => {
-      if (audioRef.current && audioRef.current.paused) {
-        audioRef.current.play().then(() => {
-          audioRef.current?.pause()
-        }).catch(() => {})
+  const requestWakeLock = async () => {
+    try {
+      if ('wakeLock' in navigator) {
+        wakeLockRef.current = await (navigator as any).wakeLock.request('screen')
       }
-      document.removeEventListener('click', unlockAudio)
-      document.removeEventListener('touchstart', unlockAudio)
+    } catch (err) {
+      console.warn('Wake Lock error:', err)
     }
+  }
 
-    document.addEventListener('click', unlockAudio)
-    document.addEventListener('touchstart', unlockAudio)
+  const releaseWakeLock = async () => {
+    if (wakeLockRef.current !== null) {
+      await wakeLockRef.current.release().catch(() => {})
+      wakeLockRef.current = null
+    }
+  }
 
+  // Re-solicitar o wake lock se o app voltar a ficar visível
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && isResting) {
+        requestWakeLock()
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibilityChange)
     return () => {
-      document.removeEventListener('click', unlockAudio)
-      document.removeEventListener('touchstart', unlockAudio)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
     }
-  }, [])
+  }, [isResting])
+
+  // Controle do Wake Lock baseado no estado isResting
+  useEffect(() => {
+    if (isResting) {
+      requestWakeLock()
+    } else {
+      releaseWakeLock()
+    }
+    
+    return () => {
+      releaseWakeLock()
+    }
+  }, [isResting])
 
   useEffect(() => {
     let interval: NodeJS.Timeout | null = null
@@ -51,15 +73,7 @@ export function GlobalTimer() {
     }
   }, [isResting, tick])
 
-  // Controle de reprodução do áudio silencioso (Hack para manter JS vivo no celular)
-  useEffect(() => {
-    if (isResting && audioRef.current) {
-      audioRef.current.play().catch(e => console.warn("Auto-play prevented", e));
-    } else if (!isResting && audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current.currentTime = 0;
-    }
-  }, [isResting]);
+
 
   // Efeito para tocar o som quando chegar a 0
   useEffect(() => {
@@ -97,19 +111,6 @@ export function GlobalTimer() {
 
   return (
     <>
-      <audio 
-        ref={audioRef} 
-        src="/silence.wav" 
-        loop 
-        playsInline 
-        className="hidden" 
-        onEnded={(e) => {
-          if (isResting) e.currentTarget.play().catch(() => {})
-        }}
-        onPause={(e) => {
-          if (isResting) e.currentTarget.play().catch(() => {})
-        }}
-      />
       
       {!shouldHideUI && (
         <div 
