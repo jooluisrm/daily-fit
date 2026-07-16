@@ -13,7 +13,7 @@ export function TodayWorkoutCard() {
   const today = new Date()
 
   const dateString = today.toISOString().split('T')[0]
-  const { data: allLogs } = useTodayAllWorkoutLogs(dateString)
+  const { data: allLogs } = useTodayAllWorkoutLogs()
 
   const selectedDayIndex = today.getDay()
   let todayWorkout = workouts?.find(w => w.isActive && w.daysOfWeek.includes(selectedDayIndex))

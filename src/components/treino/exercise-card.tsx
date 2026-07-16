@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef, UIEvent } from "react"
+import { useState, useEffect, useRef, UIEvent, useMemo } from "react"
 import { useParams } from "next/navigation"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -13,10 +13,12 @@ import Image from "next/image"
 import { CartesianGrid, Line, LineChart, XAxis, YAxis, Tooltip } from "recharts"
 import { ChartConfig, ChartContainer, ChartTooltipContent } from "@/components/ui/chart"
 import { useLogExercise, useUpdateWorkoutExercise } from "@/src/hooks/use-exercise"
-import { toast } from "sonner"
+import { useWorkoutProgressStore } from "@/src/store/use-workout-progress-store"
+import { cn } from "@/lib/utils"
 
 interface ExerciseProps {
   workoutExercise: any
+  index?: number
   isCompleted?: boolean
   onSetComplete?: () => void
 }
@@ -28,8 +30,14 @@ const chartConfig = {
   }
 } satisfies ChartConfig
 
-export function ExerciseCard({ workoutExercise, isCompleted, onSetComplete }: ExerciseProps) {
+export function ExerciseCard({ workoutExercise, index, isCompleted, onSetComplete }: ExerciseProps) {
   const workoutId = workoutExercise.workoutId
+  const progressState = useWorkoutProgressStore()
+  const [mounted, setMounted] = useState(false)
+  
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   const [isExpanded, setIsExpanded] = useState(false)
   const [selectedSet, setSelectedSet] = useState<number>(0) // 0 = Média geral, 1 a N = Séries
@@ -48,6 +56,28 @@ export function ExerciseCard({ workoutExercise, isCompleted, onSetComplete }: Ex
   const exerciseData = workoutExercise.exercise
   const sets = workoutExercise.sets
   const reps = workoutExercise.reps
+
+  const todayLogsFull = useMemo(() => {
+    const todayStrFull = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+    return workoutExercise.logs?.filter((l: any) => {
+      const logDate = new Date(l.date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+      return logDate === todayStrFull
+    }) || []
+  }, [workoutExercise.logs])
+
+  const completedSetsCount = useMemo(() => {
+    let count = 0
+    for (let s = 1; s <= sets; s++) {
+      if (todayLogsFull.some((l: any) => l.setNumber === s)) {
+        count++
+      }
+    }
+    return count
+  }, [sets, todayLogsFull])
+
+  const todayStrFull = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+  const isFullyCompleted = completedSetsCount === sets
+  const isActiveExercise = mounted && progressState.workoutId === workoutId && progressState.date === todayStrFull && progressState.currentIndex === index
 
   // Array para criar os botões das séries dinamicamente baseado no total de séries do exercício
   const setsArray = Array.from({ length: sets }, (_, i) => i + 1)
@@ -132,17 +162,17 @@ export function ExerciseCard({ workoutExercise, isCompleted, onSetComplete }: Ex
         weight: Number(currentWeightInput),
         repsDone: Number(currentRepsInput)
       })
-      toast.success(logOfToday ? `Série ${selectedSet} atualizada!` : `Série ${selectedSet} salva com sucesso!`)
-      if (!logOfToday && onSetComplete) {
+      
+      if (onSetComplete) {
         onSetComplete()
       }
       
       // Auto-advance if not the last set
-      if (!logOfToday && selectedSet < sets) {
+      if (selectedSet < sets) {
         setTimeout(() => setSelectedSet(selectedSet + 1), 500)
       }
     } catch (error) {
-      toast.error("Erro ao salvar série.")
+      console.error("Erro ao salvar série.", error)
     }
   }
 
@@ -159,7 +189,6 @@ export function ExerciseCard({ workoutExercise, isCompleted, onSetComplete }: Ex
 
   const handleSaveEdit = async () => {
     if (!editForm.name || !editForm.sets || !editForm.reps) {
-      toast.error("Preencha os campos obrigatórios.")
       return
     }
     try {
@@ -172,10 +201,9 @@ export function ExerciseCard({ workoutExercise, isCompleted, onSetComplete }: Ex
           reps: editForm.reps
         }
       })
-      toast.success("Exercício atualizado!")
       setIsEditModalOpen(false)
     } catch (error: any) {
-      toast.error(error?.response?.data?.error || "Erro ao atualizar exercício.")
+      console.error("Erro ao atualizar exercício.", error)
     }
   }
 
@@ -186,14 +214,18 @@ export function ExerciseCard({ workoutExercise, isCompleted, onSetComplete }: Ex
         workoutExerciseId: workoutExercise.id,
         data: { isActive: !workoutExercise.isActive }
       })
-      toast.success(workoutExercise.isActive ? "Exercício desativado." : "Exercício reativado!")
     } catch (error) {
-      toast.error("Erro ao alterar status do exercício.")
+      console.error("Erro ao alterar status do exercício.", error)
     }
   }
 
   return (
-    <Card className={`p-0 bg-zinc-900 border-zinc-800 overflow-hidden hover:border-zinc-700 transition-colors ${!workoutExercise.isActive ? 'opacity-50 grayscale' : ''}`}>
+    <Card className={cn(
+      "p-0 bg-zinc-900 border overflow-hidden hover:border-zinc-700 transition-colors",
+      !workoutExercise.isActive ? 'opacity-50 grayscale border-zinc-800' : 
+      isFullyCompleted ? 'border-emerald-500/50' :
+      isActiveExercise ? 'border-primary/50 shadow-[0_0_15px_rgba(var(--primary),0.2)]' : 'border-zinc-800'
+    )}>
       <CardContent className="p-0 border-0">
 
         {/* Cabeçalho do Exercício (Sempre visível) */}
@@ -227,6 +259,26 @@ export function ExerciseCard({ workoutExercise, isCompleted, onSetComplete }: Ex
               <div className="flex items-center gap-1.5 bg-zinc-950/60 backdrop-blur-md border border-zinc-800/80 shadow-sm px-3 py-1.5 rounded-lg">
                 <span className="font-semibold text-zinc-200">{reps} reps</span>
               </div>
+            </div>
+
+            <div className="flex items-center gap-1.5 mt-3">
+              {Array.from({ length: sets }).map((_, i) => {
+                const s = i + 1
+                const isSetCompleted = todayLogsFull.some((l: any) => l.setNumber === s)
+                const isSetActive = isActiveExercise && progressState.currentSet === s
+
+                return (
+                  <div 
+                    key={s} 
+                    className={cn(
+                      "w-2 h-2 rounded-full transition-all duration-300",
+                      isSetCompleted ? "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" :
+                      isSetActive ? "bg-primary shadow-[0_0_10px_rgba(var(--primary),0.8)] animate-pulse scale-125" :
+                      "bg-zinc-700"
+                    )} 
+                  />
+                )
+              })}
             </div>
 
             {/* Ícone de Expansão */}

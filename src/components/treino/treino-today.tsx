@@ -10,7 +10,7 @@ import { useWorkouts } from "@/src/hooks/use-workout"
 import { useWorkoutExercises } from "@/src/hooks/use-exercise"
 import { useTodayCardio, useLogCardio } from "@/src/hooks/use-cardio"
 import { useTodayWorkoutStatus, useStartWorkout, useUpdateWorkoutStatus, useTodayAllWorkoutLogs } from "@/src/hooks/use-workout-log"
-import { toast } from "sonner"
+
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import {
   AlertDialog,
@@ -100,21 +100,18 @@ export function TreinoToday() {
       date: new Date().toISOString().split('T')[0],
       workoutId
     }))
-    toast.success("Treino alterado para hoje!")
   }
 
   const handleRemoveSwap = () => {
     setSwappedWorkoutId(null)
     localStorage.removeItem('daily-fit-swap')
-    toast.success("Treino original restaurado.")
   }
 
   const handleStartWorkout = async () => {
     try {
       await startWorkout()
-      toast.success("Treino iniciado! Bom treino! 💪")
     } catch (error: any) {
-      toast.error(error?.response?.data?.error || "Erro ao iniciar treino.")
+      console.error("Erro ao iniciar treino.", error)
     }
   }
 
@@ -132,19 +129,16 @@ export function TreinoToday() {
     try {
       if (wantsCardio) {
         await updateStatus({ status: 'CARDIO', hasCardio: true })
-        toast.success("Bora pro cardio! 🏃‍♂️")
       } else {
         await updateStatus({ status: 'COMPLETED', hasCardio: false })
-        toast.success("Treino finalizado com sucesso! 🎉")
       }
     } catch (error) {
-      toast.error("Erro ao atualizar status.")
+      console.error("Erro ao atualizar status.", error)
     }
   }
 
   const handleFinishCardio = async () => {
     if (!cardioTime) {
-      toast.error("Insira o tempo de cardio ou clique em 'Pular'")
       return
     }
     try {
@@ -156,18 +150,16 @@ export function TreinoToday() {
         type: "Esteira",
       })
       await updateStatus({ status: 'COMPLETED', hasCardio: true })
-      toast.success("Treino 100% finalizado! 🎉")
     } catch (error) {
-      toast.error("Erro ao finalizar cardio.")
+      console.error("Erro ao finalizar cardio.", error)
     }
   }
 
   const handleUndoFinish = async () => {
     try {
       await updateStatus({ status: 'IN_PROGRESS', hasCardio: false })
-      toast.success("Treino reaberto para edições.")
     } catch (error) {
-      toast.error("Erro ao desfazer finalização.")
+      console.error("Erro ao desfazer finalização.", error)
     }
   }
 
@@ -697,10 +689,11 @@ export function TreinoToday() {
             onClose={() => toggleViewMode('list')}
           />
         ) : (
-          exercises.filter(ex => ex.isActive).map((workoutExercise) => (
+          exercises.filter(ex => ex.isActive).map((workoutExercise, index) => (
             <ExerciseCard 
               key={workoutExercise.id} 
-              workoutExercise={workoutExercise} 
+              workoutExercise={workoutExercise}
+              index={index}
               isCompleted={false} 
               onSetComplete={handleSetComplete}
             />
