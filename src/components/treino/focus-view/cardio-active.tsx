@@ -29,27 +29,21 @@ export function CardioActive({
   isUpdatingStatus
 }: CardioActiveProps) {
   return (
-    <div className="fixed inset-0 z-[60] flex flex-col bg-zinc-950 overflow-hidden shadow-2xl animate-in slide-in-from-bottom-4 duration-300">
-      <div className="absolute top-0 left-0 right-0 h-1.5 bg-zinc-900 z-50">
-        <div className="h-full bg-primary w-full shadow-[0_0_10px_rgba(var(--primary),0.8)]" />
-      </div>
-      <div className="flex-1 flex flex-col items-center justify-center p-6 relative overflow-y-auto no-scrollbar">
+    <div className="w-full h-full flex flex-col relative overflow-hidden">
+      <div className="flex-1 w-full flex flex-col items-center justify-center p-6 relative overflow-y-auto no-scrollbar">
         {/* Fundo com gradiente suave usando a cor primária */}
-        <div className="absolute inset-0 bg-gradient-to-b from-primary/10 via-zinc-950/50 to-zinc-950 opacity-80 z-0"></div>
+        
 
         <div className="relative z-10 w-full max-w-md flex flex-col items-center">
-          {/* Ícone com glow */}
-          <div className="w-20 h-20 mb-6 bg-zinc-900/80 border border-zinc-800 rounded-3xl shadow-[0_0_30px_rgba(var(--primary),0.15)] flex items-center justify-center backdrop-blur-xl">
-            <Activity className="w-10 h-10 text-primary" />
+          {/* Ícone menor */}
+          <div className="w-14 h-14 mb-4 bg-zinc-900/80 border border-zinc-800 rounded-2xl shadow-[0_0_20px_rgba(var(--primary),0.15)] flex items-center justify-center backdrop-blur-xl">
+            <Activity className="w-7 h-7 text-primary" />
           </div>
 
-          <h2 className="text-3xl font-black text-white mb-2 tracking-tight">Sessão de <span className="text-primary">Cardio</span></h2>
-          <p className="text-zinc-400 mb-8 max-w-md text-center text-lg leading-relaxed">
-            Bora suar! Registre sua atividade e finalize com chave de ouro.
-          </p>
+          <h2 className="text-2xl font-black text-white mb-6 tracking-tight">Sessão de <span className="text-primary">Cardio</span></h2>
 
-          <div className="w-full space-y-8 bg-zinc-900/60 p-6 sm:p-8 rounded-3xl border border-zinc-800 shadow-2xl backdrop-blur-xl">
-            <div className="space-y-4">
+          <div className="w-full space-y-5 bg-zinc-900/60 p-5 sm:p-6 rounded-3xl border border-zinc-800 shadow-2xl backdrop-blur-xl">
+            <div className="space-y-3">
               <Label className="text-zinc-300 uppercase tracking-widest text-xs font-bold">Tipo de Aparelho</Label>
               <div className="flex gap-2">
                 {['Esteira', 'Bike', 'Escada'].map((type) => (
@@ -65,7 +59,7 @@ export function CardioActive({
               </div>
             </div>
 
-            <div className="space-y-4">
+            <div className="space-y-3">
               <Label className="text-zinc-300 uppercase tracking-widest text-xs font-bold">Intensidade</Label>
               <div className="flex gap-2">
                 {['leve', 'moderado', 'intenso'].map((int) => (
@@ -81,7 +75,7 @@ export function CardioActive({
               </div>
             </div>
 
-            <div className="space-y-4">
+            <div className="space-y-3">
               <Label htmlFor="cardio-time" className="text-zinc-300 uppercase tracking-widest text-xs font-bold">Tempo (minutos)</Label>
               <Input
                 id="cardio-time"
@@ -93,7 +87,7 @@ export function CardioActive({
               />
             </div>
 
-            <div className="pt-4 space-y-4">
+            <div className="pt-2 space-y-3">
               <Button
                 onClick={handleFinishCardio}
                 disabled={!cardioTime || isSavingCardio || isUpdatingStatus}

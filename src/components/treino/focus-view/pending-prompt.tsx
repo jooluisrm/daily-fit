@@ -18,12 +18,9 @@ export function PendingPrompt({
   setIsViewingHistory
 }: PendingPromptProps) {
   return (
-    <div className="fixed inset-0 z-[60] flex flex-col bg-zinc-950 overflow-hidden shadow-2xl animate-in slide-in-from-bottom-4 duration-300">
-      <div className="absolute top-0 left-0 right-0 h-1.5 bg-zinc-900 z-50">
-        <div className="h-full bg-amber-500 w-full" />
-      </div>
-      <div className="flex-1 flex flex-col items-center py-12 px-6 overflow-y-auto relative no-scrollbar">
-        <div className="absolute inset-0 bg-gradient-to-b from-amber-500/10 to-transparent opacity-50 z-0"></div>
+    <div className="w-full h-full flex flex-col relative overflow-hidden">
+      <div className="flex-1 w-full flex flex-col items-center py-6 sm:py-12 px-6 overflow-y-auto relative no-scrollbar">
+        
 
         <AlertTriangle className="w-16 h-16 text-amber-500 mb-4 relative z-10" />
         <h2 className="text-3xl font-black text-white mb-2 relative z-10 text-center tracking-tight">Você pulou exercícios! 👀</h2>

@@ -13,13 +13,10 @@ export function CardioPrompt({
   handleSkipCardio
 }: CardioPromptProps) {
   return (
-    <div className="fixed inset-0 z-[60] flex flex-col bg-zinc-950 overflow-hidden shadow-2xl animate-in slide-in-from-bottom-4 duration-300">
-      <div className="absolute top-0 left-0 right-0 h-1.5 bg-zinc-900 z-50">
-        <div className="h-full bg-primary w-full shadow-[0_0_10px_rgba(var(--primary),0.8)]" />
-      </div>
-      <div className="flex-1 flex flex-col items-center justify-center py-12 px-6 text-center relative overflow-y-auto no-scrollbar">
+    <div className="w-full h-full flex flex-col relative overflow-hidden">
+      <div className="flex-1 w-full flex flex-col items-center justify-center py-6 sm:py-12 px-6 text-center relative overflow-y-auto no-scrollbar">
         {/* Fundo com gradiente suave usando a cor primária */}
-        <div className="absolute inset-0 bg-gradient-to-b from-primary/10 via-zinc-950/50 to-zinc-950 opacity-80 z-0"></div>
+        
 
         <div className="relative z-10 w-full max-w-md flex flex-col items-center">
           {/* Ícone com glow */}

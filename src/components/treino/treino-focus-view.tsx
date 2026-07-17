@@ -9,10 +9,12 @@ import { useUpdateWorkoutStatus } from "@/src/hooks/use-workout-log"
 import { useTimerStore } from "@/src/store/use-timer-store"
 import { cn } from "@/lib/utils"
 import { TreinoHistoryDialog } from "./treino-history-dialog"
+import { SwipeIndicator } from "./focus-view/swipe-indicator"
 import { TreinoSummaryDialog } from "./treino-summary-dialog"
 import { useSession } from "next-auth/react"
 import { requestNotificationPermission } from "@/src/lib/notifications"
 import { useWorkoutProgressStore } from "@/src/store/use-workout-progress-store"
+import { AnimatePresence, motion } from "framer-motion"
 
 import { checkIsSetCompleted, findNextPendingSet } from "./focus-view/utils/workout-utils"
 import { PendingPrompt } from "./focus-view/pending-prompt"
@@ -42,6 +44,7 @@ export function TreinoFocusView({ workoutId, exercises, onFinishAll, onClose }: 
   const [hasInitialized, setHasInitialized] = useState(false)
   const [currentIndex, setCurrentIndex] = useState(0)
   const [currentSet, setCurrentSet] = useState(1)
+  const [direction, setDirection] = useState(1) // 1 para ir pra frente, -1 para voltar
 
   // Initialize from localStorage directly to bypass any Zustand hydration delays
   useEffect(() => {
@@ -74,7 +77,7 @@ export function TreinoFocusView({ workoutId, exercises, onFinishAll, onClose }: 
   const [repsInput, setRepsInput] = useState("")
 
   // Cardio Integration States
-  const [phase, setPhase] = useState<'EXERCISES' | 'PENDING_PROMPT' | 'CARDIO_PROMPT' | 'CARDIO_ACTIVE'>('EXERCISES')
+  const [wantsCardio, setWantsCardio] = useState(false)
   const [cardioType, setCardioType] = useState('Esteira')
   const [cardioIntensity, setCardioIntensity] = useState('moderado')
   const [cardioTime, setCardioTime] = useState('')
@@ -112,6 +115,32 @@ export function TreinoFocusView({ workoutId, exercises, onFinishAll, onClose }: 
     }).filter(item => item.pendingSets.length > 0)
   }, [activeExercises, todayStr])
 
+  const steps = useMemo(() => {
+    const s: any[] = []
+    activeExercises.forEach(ex => s.push({ type: 'EXERCISE', ex }))
+    if (pendingExercisesList.length > 0) {
+      s.push({ type: 'PENDING' })
+    }
+    s.push({ type: 'COMPLETED' })
+    if (wantsCardio) {
+      s.push({ type: 'CARDIO' })
+    }
+    return s
+  }, [activeExercises, pendingExercisesList, wantsCardio])
+
+  useEffect(() => {
+    if (currentIndex >= steps.length) {
+      setCurrentIndex(steps.length - 1)
+    }
+  }, [steps.length, currentIndex])
+
+  useEffect(() => {
+    const cardioIdx = steps.findIndex(s => s.type === 'CARDIO')
+    if (wantsCardio && cardioIdx !== -1 && currentIndex < cardioIdx) {
+      setWantsCardio(false)
+    }
+  }, [currentIndex, wantsCardio, steps])
+
   const goToPendingSet = () => {
     if (activeExercises.length === 0) return
 
@@ -120,6 +149,7 @@ export function TreinoFocusView({ workoutId, exercises, onFinishAll, onClose }: 
     }
 
     const next = findNextPendingSet(activeExercises, currentIndex, currentSet, todayStr)
+    setDirection(1)
     if (next) {
       setCurrentIndex(next.index)
       setCurrentSet(next.set)
@@ -139,7 +169,8 @@ export function TreinoFocusView({ workoutId, exercises, onFinishAll, onClose }: 
     }
   }, [activeExercises, currentIndex, currentSet, isViewingHistory, hasInitialized])
 
-  const currentExercise = activeExercises[currentIndex]
+  const currentStep = steps[currentIndex] || steps[0]
+  const currentExercise = currentStep.type === 'EXERCISE' ? currentStep.ex : null
 
   const historyLog = useMemo(() => {
     if (!currentExercise) return null
@@ -247,18 +278,13 @@ export function TreinoFocusView({ workoutId, exercises, onFinishAll, onClose }: 
   }
 
   const advanceToNextSet = () => {
-    if (currentSet < currentExercise.sets) {
+    setDirection(1)
+    if (currentStep.type === 'EXERCISE' && currentExercise && currentSet < currentExercise.sets) {
       setCurrentSet(currentSet + 1)
     } else {
-      if (currentIndex < activeExercises.length - 1) {
+      if (currentIndex < steps.length - 1) {
         setCurrentIndex(currentIndex + 1)
         setCurrentSet(1)
-      } else {
-        if (pendingExercisesList.length > 0) {
-          setPhase('PENDING_PROMPT')
-        } else {
-          setPhase('CARDIO_PROMPT')
-        }
       }
     }
   }
@@ -299,17 +325,11 @@ export function TreinoFocusView({ workoutId, exercises, onFinishAll, onClose }: 
       })
 
       if (currentSet === currentExercise.sets && currentIndex === activeExercises.length - 1) {
-        const otherPending = pendingExercisesList.filter(p => {
-          if (p.index === currentIndex && p.pendingSets.length === 1 && p.pendingSets[0] === currentSet) return false;
-          return true;
-        })
-        if (otherPending.length > 0) {
-          setPhase('PENDING_PROMPT')
-        } else {
-          setPhase('CARDIO_PROMPT')
-        }
+        setCurrentIndex(currentIndex + 1)
+        setCurrentSet(1)
       } else {
         requestNotificationPermission()
+        setDirection(1)
         startTimer(restTimeGoal, workoutId)
       }
     } catch (error) {
@@ -324,6 +344,38 @@ export function TreinoFocusView({ workoutId, exercises, onFinishAll, onClose }: 
 
   const onTouchMove = (e: React.TouchEvent) => {
     setTouchEndX(e.targetTouches[0].clientX)
+  }
+
+  const handleNextSlide = () => {
+    advanceToNextSet()
+  }
+
+  const handlePrevSlide = () => {
+    setDirection(-1)
+    let nextI = currentIndex
+    let nextS = currentSet
+
+    if (currentStep.type !== 'EXERCISE') {
+      nextI = currentIndex - 1
+      if (steps[nextI] && steps[nextI].type === 'EXERCISE') {
+        nextS = steps[nextI].ex.sets
+      }
+    } else if (currentSet > 1) {
+      nextS = currentSet - 1
+    } else if (currentIndex > 0) {
+      nextI = currentIndex - 1
+      nextS = steps[nextI] && steps[nextI].type === 'EXERCISE' ? steps[nextI].ex.sets : 1
+    } else {
+      return
+    }
+    
+    setCurrentIndex(nextI)
+    setCurrentSet(nextS)
+    if (steps[nextI] && steps[nextI].type === 'EXERCISE') {
+       setIsViewingHistory(localCheckIsSetCompleted(nextI, nextS))
+    } else {
+       setIsViewingHistory(false)
+    }
   }
 
   const onTouchEnd = () => {
@@ -342,28 +394,14 @@ export function TreinoFocusView({ workoutId, exercises, onFinishAll, onClose }: 
     const isRightSwipe = distance < -minSwipeDistance
 
     if (isLeftSwipe) {
-      advanceToNextSet()
+      handleNextSlide()
     }
     if (isRightSwipe) {
-      let nextI = currentIndex
-      let nextS = currentSet
-      if (currentSet > 1) {
-        nextS = currentSet - 1
-      } else if (currentIndex > 0) {
-        nextI = currentIndex - 1
-        nextS = activeExercises[currentIndex - 1].sets
-      } else {
-        return
-      }
-      if (localCheckIsSetCompleted(nextI, nextS)) {
-        setCurrentIndex(nextI); setCurrentSet(nextS); setIsViewingHistory(true)
-      } else {
-        setCurrentIndex(nextI); setCurrentSet(nextS); setIsViewingHistory(false)
-      }
+      handlePrevSlide()
     }
   }
 
-  if (!currentExercise) return null
+
 
   let hasUncompletedPreviousSets = false
   if (!localCheckIsSetCompleted(currentIndex, currentSet)) {
@@ -390,46 +428,6 @@ export function TreinoFocusView({ workoutId, exercises, onFinishAll, onClose }: 
   })
 
   const progressPercent = totalSets > 0 ? (completedSets / totalSets) * 100 : 0
-
-  if (phase === 'PENDING_PROMPT') {
-    return (
-      <PendingPrompt
-        pendingExercisesList={pendingExercisesList}
-        setCurrentIndex={setCurrentIndex}
-        setCurrentSet={setCurrentSet}
-        setPhase={setPhase}
-        setIsViewingHistory={setIsViewingHistory}
-      />
-    )
-  }
-
-  if (phase === 'CARDIO_PROMPT') {
-    return (
-      <CardioPrompt
-        setPhase={setPhase}
-        isUpdatingStatus={isUpdatingStatus}
-        handleSkipCardio={handleSkipCardio}
-      />
-    )
-  }
-
-  if (phase === 'CARDIO_ACTIVE') {
-    return (
-      <CardioActive
-        cardioType={cardioType}
-        setCardioType={setCardioType}
-        cardioIntensity={cardioIntensity}
-        setCardioIntensity={setCardioIntensity}
-        cardioTime={cardioTime}
-        setCardioTime={setCardioTime}
-        handleFinishCardio={handleFinishCardio}
-        handleSkipCardio={handleSkipCardio}
-        isSavingCardio={isSavingCardio}
-        isUpdatingStatus={isUpdatingStatus}
-      />
-    )
-  }
-
   const isHistoryMode = localCheckIsSetCompleted(currentIndex, currentSet)
 
   let hasUnsavedChanges = false
@@ -446,165 +444,244 @@ export function TreinoFocusView({ workoutId, exercises, onFinishAll, onClose }: 
   }
 
   return (
-    <div className={cn(
-      "fixed inset-0 z-[60] flex flex-col bg-zinc-950 overflow-hidden shadow-2xl animate-in slide-in-from-bottom-4 duration-300",
-      isHistoryMode ? "ring-inset ring-2 ring-amber-500/20" : ""
-    )}>
-      {/* Progress Bar Top */}
-      <div className="absolute top-0 left-0 right-0 h-1.5 bg-zinc-900 z-50">
-        <div
-          className={cn("h-full transition-all duration-500 ease-out", isHistoryMode ? "bg-amber-600" : "bg-primary")}
-          style={{ width: `${progressPercent}%` }}
-        />
-      </div>
+    <>
+      <div className="fixed inset-0 z-[60]">
+            <div className={cn(
+              "flex flex-col bg-zinc-950 overflow-hidden shadow-2xl h-full w-full",
+              isHistoryMode ? "ring-inset ring-2 ring-amber-500/20" : ""
+            )}>
+              {/* Progress Bar Top */}
+              <div className="absolute top-0 left-0 right-0 h-1.5 bg-zinc-900 z-50">
+                <div
+                  className={cn("h-full transition-all duration-500 ease-out", isHistoryMode ? "bg-amber-600" : "bg-primary")}
+                  style={{ width: `${progressPercent}%` }}
+                />
+              </div>
 
-      {/* Main Content Area */}
-      <div
-        className="flex-1 flex flex-col relative z-10 overflow-hidden select-none"
-        onTouchStart={onTouchStart}
-        onTouchMove={onTouchMove}
-        onTouchEnd={onTouchEnd}
-      >
+              {/* Main Content Area */}
+              <div
+                className="flex-1 flex flex-col relative z-10 overflow-hidden select-none"
+                onTouchStart={onTouchStart}
+                onTouchMove={onTouchMove}
+                onTouchEnd={onTouchEnd}
+              >
 
-        {/* Background Image */}
-        <div className="absolute inset-0 z-0">
-          {currentExercise.exercise.imageUrl ? (
-            <>
-              <img
-                src={currentExercise.exercise.imageUrl}
-                alt={currentExercise.exercise.name}
-                className="w-full h-full object-cover opacity-20 mix-blend-luminosity scale-105"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/80 to-transparent" />
-            </>
-          ) : (
-            <div className="absolute inset-0 bg-zinc-900 flex items-center justify-center opacity-10">
-              <Dumbbell className="w-64 h-64 text-zinc-800" />
-            </div>
-          )}
-        </div>
-
-        {/* Content */}
-        <div className="flex-1 z-10 flex flex-col justify-between px-6 sm:px-12 py-6">
-
-          <TopBar
-            onClose={onClose}
-            activeExercises={activeExercises}
-            currentIndex={currentIndex}
-            checkIsSetCompleted={localCheckIsSetCompleted}
-            setCurrentIndex={setCurrentIndex}
-            setCurrentSet={setCurrentSet}
-            setIsViewingHistory={setIsViewingHistory}
-            setIsSummaryModalOpen={setIsSummaryModalOpen}
-            progressPercent={progressPercent}
-            isHistoryMode={isHistoryMode}
-          />
-
-          {/* Middle Content */}
-          <div className="flex flex-col justify-center flex-1 my-2">
-            <div className="text-center mb-8">
-              <h2 className="text-3xl sm:text-5xl font-black text-white mb-4 drop-shadow-xl tracking-tight">
-                {currentExercise.exercise.name}
-              </h2>
-              <div className="flex items-center justify-center gap-2 sm:gap-3 mt-4">
-                {Array.from({ length: currentExercise.sets }).map((_, idx) => {
-                  const setNum = idx + 1
-                  const isCompleted = localCheckIsSetCompleted(currentIndex, setNum)
-                  const isCurrent = setNum === currentSet
-
-                  return (
-                    <div
-                      key={setNum}
-                      onClick={() => {
-                        setCurrentSet(setNum)
-                        setIsViewingHistory(isCompleted)
-                      }}
-                      className={cn(
-                        "w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center font-bold text-sm sm:text-base transition-all duration-300 cursor-pointer",
-                        isCompleted && !isCurrent ? (isHistoryMode ? "bg-amber-600 text-white shadow-[0_0_15px_rgba(245,158,11,0.5)]" : "bg-primary text-white shadow-[0_0_15px_rgba(var(--primary),0.5)]") : (!isCurrent ? "bg-zinc-900/80 text-zinc-500 backdrop-blur-md" : ""),
-                        isCurrent ? (isHistoryMode ? "bg-amber-600 text-white ring-4 ring-amber-500/30 scale-110 shadow-[0_0_20px_rgba(245,158,11,0.8)]" : "border-2 border-primary text-primary bg-primary/10 scale-110") : "border border-zinc-800"
-                      )}
+                {/* Background Image */}
+                <div className="absolute inset-0 z-0">
+                  <AnimatePresence mode="wait">
+                    <motion.div 
+                      key={currentStep.type === 'EXERCISE' ? currentStep.ex.id : currentStep.type}
+                      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.5 }}
+                      className="absolute inset-0"
                     >
-                      {isCompleted ? <CheckCircle2 className="w-5 h-5 sm:w-6 sm:h-6" /> : setNum}
-                    </div>
-                  )
-                })}
+                      {currentStep.type === 'EXERCISE' && currentExercise?.exercise?.imageUrl ? (
+                        <>
+                          <img
+                            src={currentExercise.exercise.imageUrl}
+                            alt={currentExercise?.exercise?.name}
+                            className="w-full h-full object-cover opacity-20 mix-blend-luminosity scale-105"
+                          />
+                          <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/80 to-transparent" />
+                        </>
+                      ) : currentStep.type === 'PENDING' ? (
+                          <div className="absolute inset-0 bg-gradient-to-b from-amber-500/10 via-zinc-950/50 to-zinc-950 opacity-80" />
+                      ) : currentStep.type === 'COMPLETED' ? (
+                          <div className="absolute inset-0 bg-gradient-to-b from-primary/10 via-zinc-950/50 to-zinc-950 opacity-80" />
+                      ) : currentStep.type === 'CARDIO' ? (
+                          <div className="absolute inset-0 bg-gradient-to-b from-primary/10 via-zinc-950/50 to-zinc-950 opacity-80" />
+                      ) : (
+                        <div className="absolute inset-0 bg-zinc-900 flex items-center justify-center opacity-10">
+                          <Dumbbell className="w-64 h-64 text-zinc-800" />
+                        </div>
+                      )}
+                    </motion.div>
+                  </AnimatePresence>
+                </div>
+
+                {/* Content */}
+                <div className="flex-1 z-10 flex flex-col justify-between px-6 sm:px-12 py-6">
+
+                  <TopBar
+                    onClose={onClose}
+                    steps={steps}
+                    currentIndex={currentIndex}
+                    checkIsSetCompleted={localCheckIsSetCompleted}
+                    setCurrentIndex={(idx) => {
+                      if (idx > currentIndex) setDirection(1);
+                      else if (idx < currentIndex) setDirection(-1);
+                      setCurrentIndex(idx);
+                    }}
+                    setCurrentSet={(set) => setCurrentSet(set)}
+                    setIsViewingHistory={setIsViewingHistory}
+                    setIsSummaryModalOpen={setIsSummaryModalOpen}
+                    progressPercent={progressPercent}
+                    isHistoryMode={isHistoryMode}
+                  />
+
+                  {/* Middle Content Animated */}
+                  <div className="flex flex-col justify-center flex-1 my-2 overflow-hidden w-full relative">
+                    <AnimatePresence mode="wait" custom={direction}>
+                      <motion.div
+                        key={currentStep.type === 'EXERCISE' ? currentStep.ex.id : currentStep.type}
+                        custom={direction}
+                        variants={{
+                          enter: (dir: number) => ({
+                            x: dir > 0 ? 50 : -50,
+                            opacity: 0,
+                            scale: 0.95
+                          }),
+                          center: {
+                            x: 0,
+                            opacity: 1,
+                            scale: 1
+                          },
+                          exit: (dir: number) => ({
+                            x: dir < 0 ? 50 : -50,
+                            opacity: 0,
+                            scale: 0.95
+                          })
+                        }}
+                        initial="enter"
+                        animate="center"
+                        exit="exit"
+                        transition={{ duration: 0.3, ease: "easeInOut" }}
+                        className="w-full flex flex-col items-center justify-center h-full"
+                      >
+                        {currentStep.type === 'EXERCISE' && currentExercise && (
+                          <>
+                            <div className="text-center mb-8 w-full">
+                              <h2 className="text-3xl sm:text-5xl font-black text-white mb-4 drop-shadow-xl tracking-tight">
+                                {currentExercise.exercise.name}
+                              </h2>
+                              <div className="flex items-center justify-center gap-2 sm:gap-3 mt-4 flex-wrap">
+                                {Array.from({ length: currentExercise.sets }).map((_, idx) => {
+                                  const setNum = idx + 1
+                                  const isCompleted = localCheckIsSetCompleted(currentIndex, setNum)
+                                  const isCurrent = setNum === currentSet
+
+                                  return (
+                                    <div
+                                      key={setNum}
+                                      onClick={() => {
+                                        if (setNum > currentSet) setDirection(1);
+                                        else if (setNum < currentSet) setDirection(-1);
+                                        setCurrentSet(setNum)
+                                        setIsViewingHistory(isCompleted)
+                                      }}
+                                      className={cn(
+                                        "w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center font-bold text-sm sm:text-base transition-all duration-300 cursor-pointer",
+                                        isCompleted && !isCurrent ? (isHistoryMode ? "bg-amber-600 text-white shadow-[0_0_15px_rgba(245,158,11,0.5)]" : "bg-primary text-white shadow-[0_0_15px_rgba(var(--primary),0.5)]") : (!isCurrent ? "bg-zinc-900/80 text-zinc-500 backdrop-blur-md" : ""),
+                                        isCurrent ? (isHistoryMode ? "bg-amber-600 text-white ring-4 ring-amber-500/30 scale-110 shadow-[0_0_20px_rgba(245,158,11,0.8)]" : "border-2 border-primary text-primary bg-primary/10 scale-110") : "border border-zinc-800"
+                                      )}
+                                    >
+                                      {isCompleted ? <CheckCircle2 className="w-5 h-5 sm:w-6 sm:h-6" /> : setNum}
+                                    </div>
+                                  )
+                                })}
+                              </div>
+                            </div>
+
+                            <div className="w-full relative flex-1 flex flex-col justify-center">
+                              <AnimatePresence mode="wait">
+                                <motion.div
+                                  key={isResting ? 'rest' : 'active'}
+                                  initial={{ opacity: 0, scale: 0.95 }}
+                                  animate={{ opacity: 1, scale: 1 }}
+                                  exit={{ opacity: 0, scale: 0.95 }}
+                                  transition={{ duration: 0.2 }}
+                                  className="w-full flex flex-col"
+                                >
+                                  {!isResting ? (
+                                    <ActiveSetView
+                                      currentExercise={currentExercise}
+                                      currentIndex={currentIndex}
+                                      currentSet={currentSet}
+                                      checkIsSetCompleted={localCheckIsSetCompleted}
+                                      setCurrentSet={setCurrentSet}
+                                      setIsViewingHistory={setIsViewingHistory}
+                                      isHistoryMode={isHistoryMode}
+                                      hasUncompletedPreviousSets={hasUncompletedPreviousSets}
+                                      weightInput={weightInput}
+                                      setWeightInput={setWeightInput}
+                                      repsInput={repsInput}
+                                      setRepsInput={setRepsInput}
+                                      setIsHistoryModalOpen={setIsHistoryModalOpen}
+                                      historyLog={historyLog}
+                                      hasUnsavedChanges={hasUnsavedChanges}
+                                      handleSave={handleSave}
+                                      isSaving={isSaving}
+                                      goToPendingSet={goToPendingSet}
+                                    />
+                                  ) : (
+                                    <RestView
+                                      addTime={addTime}
+                                      restTimeLeft={restTimeLeft}
+                                      restTimeGoal={restTimeGoal}
+                                      isHistoryMode={isHistoryMode}
+                                      historyLog={historyLog}
+                                      handleRestFinished={handleRestFinished}
+                                      autoAdvanceTimeLeft={autoAdvanceTimeLeft}
+                                    />
+                                  )}
+                                </motion.div>
+                              </AnimatePresence>
+                            </div>
+                          </>
+                        )}
+
+                        {currentStep.type === 'PENDING' && (
+                          <PendingPrompt
+                            pendingExercisesList={pendingExercisesList}
+                            setCurrentIndex={setCurrentIndex}
+                            setCurrentSet={setCurrentSet}
+                            setPhase={() => {}} 
+                            setIsViewingHistory={setIsViewingHistory}
+                          />
+                        )}
+
+                        {currentStep.type === 'COMPLETED' && (
+                          <CardioPrompt
+                            setPhase={(phase) => {
+                                if (phase === 'CARDIO_ACTIVE') {
+                                    setDirection(1)
+                                    setWantsCardio(true)
+                                    setCurrentIndex(prev => prev + 1)
+                                }
+                            }}
+                            isUpdatingStatus={isUpdatingStatus}
+                            handleSkipCardio={handleSkipCardio}
+                          />
+                        )}
+
+                        {currentStep.type === 'CARDIO' && (
+                          <CardioActive
+                            cardioType={cardioType}
+                            setCardioType={setCardioType}
+                            cardioIntensity={cardioIntensity}
+                            setCardioIntensity={setCardioIntensity}
+                            cardioTime={cardioTime}
+                            setCardioTime={setCardioTime}
+                            handleFinishCardio={handleFinishCardio}
+                            handleSkipCardio={handleSkipCardio}
+                            isSavingCardio={isSavingCardio}
+                            isUpdatingStatus={isUpdatingStatus}
+                          />
+                        )}
+                      </motion.div>
+                    </AnimatePresence>
+                  </div>
+                  <SwipeIndicator
+                    isSwipeLocked={isSwipeLocked}
+                    setIsSwipeLocked={setIsSwipeLocked}
+                    shakeLock={shakeLock}
+                    onNext={handleNextSlide}
+                    onPrev={handlePrevSlide}
+                    hasNext={currentIndex < steps.length - 1}
+                  />
+                </div>
+
               </div>
             </div>
-
-            {!isResting ? (
-              <ActiveSetView
-                currentExercise={currentExercise}
-                currentIndex={currentIndex}
-                currentSet={currentSet}
-                checkIsSetCompleted={localCheckIsSetCompleted}
-                setCurrentSet={setCurrentSet}
-                setIsViewingHistory={setIsViewingHistory}
-                isHistoryMode={isHistoryMode}
-                hasUncompletedPreviousSets={hasUncompletedPreviousSets}
-                weightInput={weightInput}
-                setWeightInput={setWeightInput}
-                repsInput={repsInput}
-                setRepsInput={setRepsInput}
-                setIsHistoryModalOpen={setIsHistoryModalOpen}
-                historyLog={historyLog}
-                hasUnsavedChanges={hasUnsavedChanges}
-                handleSave={handleSave}
-                isSaving={isSaving}
-                goToPendingSet={goToPendingSet}
-              />
-            ) : (
-              <RestView
-                addTime={addTime}
-                restTimeLeft={restTimeLeft}
-                restTimeGoal={restTimeGoal}
-                isHistoryMode={isHistoryMode}
-                historyLog={historyLog}
-                handleRestFinished={handleRestFinished}
-                autoAdvanceTimeLeft={autoAdvanceTimeLeft}
-              />
-            )}
-          </div>
-
-          {/* Swipe Indicator & Lock */}
-          <div className="mt-auto flex justify-center items-center gap-8 pb-8">
-            <div className="flex items-center justify-center opacity-50">
-              <ChevronLeft className="w-6 h-6 text-zinc-500 animate-[pulse_2s_ease-in-out_infinite]" />
-              <ChevronLeft className="w-6 h-6 text-zinc-500 animate-[pulse_2s_ease-in-out_infinite]" />
-              <ChevronLeft className="w-6 h-6 text-zinc-500 animate-[pulse_2s_ease-in-out_infinite]" />
-            </div>
-
-            <style>{`
-              @keyframes shakeLock {
-                0%, 100% { transform: translateX(0); }
-                20% { transform: translateX(-4px) rotate(-4deg); }
-                40% { transform: translateX(4px) rotate(4deg); }
-                60% { transform: translateX(-4px) rotate(-4deg); }
-                80% { transform: translateX(4px) rotate(4deg); }
-              }
-            `}</style>
-            <Button
-              variant="secondary"
-              onClick={() => setIsSwipeLocked(!isSwipeLocked)}
-              className={cn(
-                "rounded-full w-14 h-14 border-2 flex items-center justify-center transition-all shadow-lg",
-                isSwipeLocked
-                  ? "bg-red-500/10 border-red-500/50 text-red-500 hover:bg-red-500/20"
-                  : "bg-emerald-500/10 border-emerald-500/50 text-emerald-500 hover:bg-emerald-500/20",
-                shakeLock ? "animate-[shakeLock_0.4s_ease-in-out]" : ""
-              )}
-            >
-              {isSwipeLocked ? <Lock className="w-6 h-6" /> : <Unlock className="w-6 h-6" />}
-            </Button>
-
-            <div className="flex items-center justify-center opacity-50">
-              <ChevronRight className="w-6 h-6 text-zinc-500 animate-[pulse_2s_ease-in-out_infinite]" />
-              <ChevronRight className="w-6 h-6 text-zinc-500 animate-[pulse_2s_ease-in-out_infinite]" />
-              <ChevronRight className="w-6 h-6 text-zinc-500 animate-[pulse_2s_ease-in-out_infinite]" />
-            </div>
-          </div>
-        </div>
-
       </div>
 
       <TreinoHistoryDialog
@@ -624,6 +701,11 @@ export function TreinoFocusView({ workoutId, exercises, onFinishAll, onClose }: 
         isViewingHistory={isViewingHistory}
         checkIsSetCompleted={localCheckIsSetCompleted}
         onNavigate={(idx, targetSet, isFullyDone) => {
+          if (idx > currentIndex || (idx === currentIndex && targetSet > currentSet)) {
+            setDirection(1)
+          } else if (idx < currentIndex || (idx === currentIndex && targetSet < currentSet)) {
+            setDirection(-1)
+          }
           setCurrentIndex(idx)
           setCurrentSet(targetSet)
           if (isFullyDone) setIsViewingHistory(true)
@@ -631,6 +713,6 @@ export function TreinoFocusView({ workoutId, exercises, onFinishAll, onClose }: 
           setIsSummaryModalOpen(false)
         }}
       />
-    </div>
+    </>
   )
 }
