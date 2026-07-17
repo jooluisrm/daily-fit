@@ -31,3 +31,25 @@ export const useUpdateWorkout = (workoutId: string) => {
     },
   });
 };
+
+export const useDeleteWorkout = (workoutId: string) => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: () => WorkoutAPI.deleteWorkout(workoutId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['workouts'] });
+    },
+  });
+};
+
+export const useSyncWorkoutExercises = (workoutId: string) => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (data: { sets: number, reps: string }) => WorkoutAPI.syncWorkoutExercises(workoutId, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['workout-exercises', workoutId] });
+    },
+  });
+};

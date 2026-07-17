@@ -81,6 +81,8 @@ export class UserService {
     gender?: string;
     restTimeGoal?: number;
     phone?: string;
+    defaultSets?: number;
+    defaultReps?: string;
   }) {
     // Verificamos se o usuário existe
     const user = await prisma.user.findUnique({
@@ -102,6 +104,8 @@ export class UserService {
         ...(data.weight !== undefined && { weight: data.weight }),
         ...(data.gender && { gender: data.gender }),
         ...(data.restTimeGoal !== undefined && { restTimeGoal: data.restTimeGoal }),
+        ...(data.defaultSets !== undefined && { defaultSets: data.defaultSets }),
+        ...(data.defaultReps !== undefined && { defaultReps: data.defaultReps }),
       }
     });
 

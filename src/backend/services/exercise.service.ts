@@ -255,4 +255,29 @@ export class ExerciseService {
     
     return true;
   }
+
+  /**
+   * Remove um exercício do treino
+   */
+  static async deleteWorkoutExercise(workoutExerciseId: string, userId: string) {
+    const workoutExercise = await prisma.workoutExercise.findUnique({
+      where: { id: workoutExerciseId },
+      include: { workout: true }
+    });
+
+    if (!workoutExercise || workoutExercise.workout.userId !== userId) {
+      throw new Error('Exercício não encontrado ou não autorizado.');
+    }
+
+    // Deleta os logs associados primeiro, se não houver cascata no banco
+    await prisma.exerciseLog.deleteMany({
+      where: { workoutExerciseId }
+    });
+
+    await prisma.workoutExercise.delete({
+      where: { id: workoutExerciseId }
+    });
+
+    return { success: true };
+  }
 }

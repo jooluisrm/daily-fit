@@ -2,18 +2,20 @@
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
-import { useParams } from "next/navigation"
+import { useParams, useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog"
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { ArrowLeft, CalendarDays, Plus, Image as ImageIcon, Save, Trash2, Edit2, Loader2, Dumbbell, History, Pen, MoreVertical, PowerOff, Power, Search, GripVertical } from "lucide-react"
 import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd"
-import { useWorkouts, useUpdateWorkout } from "@/src/hooks/use-workout"
-import { useWorkoutExercises, useAddExerciseToWorkout, useLogExercise, useCatalogExercises, useUpdateWorkoutExercise, useReorderWorkoutExercises } from "@/src/hooks/use-exercise"
+import { useWorkouts, useUpdateWorkout, useDeleteWorkout } from "@/src/hooks/use-workout"
+import { useSession } from "next-auth/react"
+import { useWorkoutExercises, useAddExerciseToWorkout, useLogExercise, useCatalogExercises, useUpdateWorkoutExercise, useReorderWorkoutExercises, useDeleteWorkoutExercise } from "@/src/hooks/use-exercise"
 import { toast } from "sonner"
 import { Card } from "@/components/ui/card"
 
@@ -22,6 +24,9 @@ const DAYS_MAP = ["DOM", "SEG", "TER", "QUA", "QUI", "SEX", "SÁB"]
 export default function WorkoutDetailsPage() {
   const params = useParams()
   const workoutId = params.id as string
+
+  const { data: session } = useSession()
+  const user = session?.user as any
 
   const { data: workouts } = useWorkouts()
   const workout = workouts?.find(w => w.id === workoutId)
@@ -43,10 +48,33 @@ export default function WorkoutDetailsPage() {
     form: { name: "", imageUrl: "", sets: "", reps: "" }
   })
   const { mutateAsync: updateWorkout, isPending: isUpdating } = useUpdateWorkout(workoutId)
+  const { mutateAsync: deleteWorkout, isPending: isDeletingWorkout } = useDeleteWorkout(workoutId)
+  const { mutateAsync: deleteWorkoutExercise } = useDeleteWorkoutExercise(workoutId)
 
+  const router = useRouter()
   const [isOpen, setIsOpen] = useState(false)
   const [isEditOpen, setIsEditOpen] = useState(false)
-  const [formData, setFormData] = useState({ name: "", image: "", sets: "", reps: "" })
+  const [exerciseToDelete, setExerciseToDelete] = useState<any>(null)
+  
+  // O formData agora é inicializado com os valores padrão assim que o modal for aberto ou no load.
+  const [formData, setFormData] = useState({ 
+    name: "", 
+    image: "", 
+    sets: "", 
+    reps: "" 
+  })
+
+  // Preenchemos os defaults quando o user carregar se o form ainda estiver vazio
+  useEffect(() => {
+    if (user && formData.sets === "" && formData.reps === "") {
+      setFormData(prev => ({
+        ...prev,
+        sets: user.defaultSets ? String(user.defaultSets) : "4",
+        reps: user.defaultReps || "10-12"
+      }))
+    }
+  }, [user])
+
   const [editData, setEditData] = useState<{ name: string, daysOfWeek: number[] }>({ name: "", daysOfWeek: [] })
   const [loggingState, setLoggingState] = useState<Record<string, { weight: string; repsDone: string; isSaving: boolean }>>({})
   const [catalogSearch, setCatalogSearch] = useState("")
@@ -101,7 +129,7 @@ export default function WorkoutDetailsPage() {
 
   // Dias já alocados em outros treinos ativos (ignorando este)
   const disabledDays = workouts
-    ?.filter(w => w.id !== workoutId && w.isActive)
+    ?.filter(w => String(w.id) !== String(workoutId) && w.isActive)
     ?.flatMap(w => w.daysOfWeek) || []
 
   const toggleDay = (day: number) => {
@@ -129,7 +157,12 @@ export default function WorkoutDetailsPage() {
       })
       toast.success("Exercício adicionado!")
       setIsOpen(false)
-      setFormData({ name: "", image: "", sets: "", reps: "" })
+      setFormData({ 
+        name: "", 
+        image: "", 
+        sets: user?.defaultSets ? String(user.defaultSets) : "4", 
+        reps: user?.defaultReps || "10-12" 
+      })
     } catch (error: any) {
       toast.error(error?.response?.data?.error || "Erro ao adicionar.")
     }
@@ -141,6 +174,25 @@ export default function WorkoutDetailsPage() {
       toast.success(workout?.isActive ? "Treino desativado!" : "Treino reativado!")
     } catch (error: any) {
       toast.error(error?.response?.data?.error || "Erro ao alterar status.")
+    }
+  }
+
+  const handleDeleteWorkout = async () => {
+    try {
+      await deleteWorkout()
+      toast.success("Treino excluído com sucesso!")
+      router.push("/treino?tab=list")
+    } catch (error: any) {
+      toast.error(error?.response?.data?.error || "Erro ao excluir treino.")
+    }
+  }
+
+  const handleDeleteExercise = async (workoutExerciseId: string) => {
+    try {
+      await deleteWorkoutExercise(workoutExerciseId)
+      toast.success("Exercício removido!")
+    } catch (error: any) {
+      toast.error(error?.response?.data?.error || "Erro ao remover exercício.")
     }
   }
 
@@ -267,6 +319,27 @@ export default function WorkoutDetailsPage() {
         </div>
 
         <div className="flex gap-2">
+          {!workout?.isActive && (
+            <AlertDialog>
+              <AlertDialogTrigger render={<Button variant="outline" size="icon" disabled={isDeletingWorkout} className="bg-transparent border-red-900/50 text-red-400 hover:bg-red-950/80 hover:text-red-300 hover:border-red-800 transition-colors cursor-pointer" />}>
+                {isDeletingWorkout ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+              </AlertDialogTrigger>
+              <AlertDialogContent className="bg-zinc-950 border-zinc-800 text-zinc-100">
+                <AlertDialogHeader>
+                  <AlertDialogTitle className="text-white">Excluir treino?</AlertDialogTitle>
+                  <AlertDialogDescription className="text-zinc-400">
+                    Tem certeza que deseja excluir o treino "{workout?.name}"? Esta ação não pode ser desfeita e todos os exercícios associados e seus históricos serão apagados.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel className="bg-zinc-900 border-zinc-800 text-white hover:bg-zinc-800">Cancelar</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleDeleteWorkout} className="bg-red-600 hover:bg-red-700 text-white">
+                    Excluir
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          )}
           <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
             <DialogTrigger
               render={
@@ -585,6 +658,10 @@ export default function WorkoutDetailsPage() {
                                     </>
                                   )}
                                 </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => setExerciseToDelete(item)} className="cursor-pointer hover:bg-zinc-900 focus:bg-zinc-900 py-2.5">
+                                  <Trash2 className="w-4 h-4 mr-2 text-red-500" />
+                                  <span className="text-red-500">Excluir</span>
+                                </DropdownMenuItem>
                               </DropdownMenuContent>
                             </DropdownMenu>
                           </div>
@@ -666,6 +743,27 @@ export default function WorkoutDetailsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Modal de Exclusão de Exercício */}
+      <AlertDialog open={!!exerciseToDelete} onOpenChange={(open) => !open && setExerciseToDelete(null)}>
+        <AlertDialogContent className="bg-zinc-950 border-zinc-800 text-zinc-100">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-white">Excluir exercício?</AlertDialogTitle>
+            <AlertDialogDescription className="text-zinc-400">
+              Tem certeza que deseja remover o exercício "{exerciseToDelete?.exercise?.name}"? Esta ação excluirá todo o histórico associado a ele neste treino.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="bg-zinc-900 border-zinc-800 text-white hover:bg-zinc-800">Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={() => {
+              if (exerciseToDelete) handleDeleteExercise(exerciseToDelete.id);
+              setExerciseToDelete(null);
+            }} className="bg-red-600 hover:bg-red-700 text-white">
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

@@ -48,6 +48,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           gender: user.gender,
           image: user.image,
           restTimeGoal: user.restTimeGoal,
+          defaultSets: user.defaultSets,
+          defaultReps: user.defaultReps,
         };
       },
     }),
@@ -63,6 +65,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         token.weight = (user as any).weight;
         token.gender = (user as any).gender;
         token.restTimeGoal = (user as any).restTimeGoal;
+        token.defaultSets = (user as any).defaultSets;
+        token.defaultReps = (user as any).defaultReps;
         token.picture = user.image; // O NextAuth por padrão usa token.picture para a imagem
         token.isProfileComplete = !!(
           (user as any).firstName &&
@@ -82,6 +86,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         if (session.weight !== undefined) token.weight = session.weight;
         if (session.gender !== undefined) token.gender = session.gender;
         if (session.restTimeGoal !== undefined) token.restTimeGoal = session.restTimeGoal;
+        if (session.defaultSets !== undefined) token.defaultSets = session.defaultSets;
+        if (session.defaultReps !== undefined) token.defaultReps = session.defaultReps;
         if (session.image !== undefined) token.picture = session.image; // Atualiza a foto
       }
       
@@ -97,6 +103,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         (session.user as any).weight = token.weight;
         (session.user as any).gender = token.gender;
         (session.user as any).restTimeGoal = token.restTimeGoal;
+        (session.user as any).defaultSets = token.defaultSets;
+        (session.user as any).defaultReps = token.defaultReps;
         (session.user as any).isProfileComplete = token.isProfileComplete;
         if (token.picture) session.user.image = token.picture as string; // Passa a imagem pro user
       }

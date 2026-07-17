@@ -28,5 +28,15 @@ export const WorkoutAPI = {
   updateWorkout: async (id: string, data: { name?: string, daysOfWeek?: number[], isActive?: boolean }): Promise<Workout> => {
     const response = await api.put(`/workouts/${id}`, data);
     return response.data;
+  },
+
+  deleteWorkout: async (id: string): Promise<{ success: boolean }> => {
+    const response = await api.delete(`/workouts/${id}`);
+    return response.data;
+  },
+
+  syncWorkoutExercises: async (id: string, data: { sets: number, reps: string }): Promise<{ success: boolean, message: string }> => {
+    const response = await api.post(`/workouts/${id}/sync-exercises`, data);
+    return response.data;
   }
 };

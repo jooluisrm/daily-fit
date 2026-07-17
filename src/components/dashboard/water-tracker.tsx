@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Droplet, Settings, Plus, CheckCircle2, Sparkles } from "lucide-react"
+import { Droplet, Settings, Plus, CheckCircle2, Sparkles, Clock } from "lucide-react"
 import { useWaterData, useAddWater, useUpdateWaterSettings } from "@/src/hooks/use-water"
 import { toast } from "sonner"
 
@@ -24,6 +24,30 @@ export function WaterTrackerCard() {
 
   const percentage = Math.min(Math.round((total / goal) * 100), 100)
   const isCompleted = total >= goal && goal > 0
+
+  let lastLogText = ""
+  if (data?.logs && data.logs.length > 0) {
+    const sortedLogs = [...data.logs].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+    const lastLogDate = new Date(sortedLogs[0].date)
+    const now = new Date()
+    
+    const diffMs = now.getTime() - lastLogDate.getTime()
+    const diffMinutes = Math.floor(diffMs / (1000 * 60))
+    
+    if (diffMinutes < 1) {
+      lastLogText = "agora mesmo"
+    } else if (diffMinutes < 60) {
+      lastLogText = `há ${diffMinutes} min`
+    } else {
+      const hours = Math.floor(diffMinutes / 60)
+      const remainingMinutes = diffMinutes % 60
+      if (remainingMinutes === 0) {
+        lastLogText = `há ${hours}h`
+      } else {
+        lastLogText = `há ${hours}h e ${remainingMinutes}min`
+      }
+    }
+  }
 
   const handleAddWater = (amount: number) => {
     addWater(amount, {
@@ -88,9 +112,17 @@ export function WaterTrackerCard() {
               </div>
             </div>
             
-            <div className="mt-4 flex items-center justify-center gap-1.5 text-xs text-blue-400 bg-blue-500/10 px-2 py-1 rounded-md">
-              <Sparkles className="w-3.5 h-3.5" />
-              <span>Meta Inteligente</span>
+            <div className="mt-4 flex flex-col items-center gap-2">
+              <div className="flex items-center justify-center gap-1.5 text-xs text-blue-400 bg-blue-500/10 px-2 py-1 rounded-md">
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>Meta Inteligente</span>
+              </div>
+              {lastLogText && (
+                <span className="text-xs text-zinc-500 flex items-center gap-1" title="Última vez que bebeu água hoje">
+                  <Clock className="w-3 h-3" />
+                  {lastLogText}
+                </span>
+              )}
             </div>
 
             {isCompleted && (

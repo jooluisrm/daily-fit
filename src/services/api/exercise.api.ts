@@ -55,5 +55,10 @@ export const ExerciseAPI = {
   reorderWorkoutExercises: async (workoutId: string, orderedExerciseIds: string[]): Promise<{ success: boolean }> => {
     const response = await api.put(`/workouts/${workoutId}/exercises/reorder`, { orderedExerciseIds });
     return response.data;
+  },
+
+  deleteWorkoutExercise: async (workoutExerciseId: string): Promise<{ success: boolean }> => {
+    const response = await api.delete(`/workouts/exercises/${workoutExerciseId}`);
+    return response.data;
   }
 };

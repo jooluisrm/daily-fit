@@ -102,4 +102,28 @@ export class WorkoutService {
       data: updateData
     });
   }
+
+  /**
+   * Exclui um treino (e seus exercícios em cascata, se configurado no schema)
+   */
+  static async deleteWorkout(workoutId: string, userId: string) {
+    const workout = await prisma.workout.findUnique({
+      where: { id: workoutId }
+    });
+
+    if (!workout || workout.userId !== userId) {
+      throw new Error('Treino não encontrado ou não autorizado.');
+    }
+
+    // Excluir os exercícios vinculados primeiro se não houver onDelete: Cascade no prisma schema
+    await prisma.workoutExercise.deleteMany({
+      where: { workoutId }
+    });
+
+    await prisma.workout.delete({
+      where: { id: workoutId }
+    });
+
+    return { success: true };
+  }
 }

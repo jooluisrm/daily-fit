@@ -69,6 +69,8 @@ model User {
   // Campos de controle
   termsAccepted Boolean @default(false)
   restTimeGoal  Int     @default(90) // Tempo de descanso entre séries em segundos
+  defaultSets   Int     @default(4)
+  defaultReps   String  @default("10-12")
 
   // Métricas Físicas do MVP (opcionais, preenchidos depois)
   age            Int?

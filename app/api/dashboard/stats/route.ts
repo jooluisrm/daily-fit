@@ -38,7 +38,8 @@ export async function GET(req: Request) {
         }
       },
       select: {
-        date: true
+        date: true,
+        status: true
       }
     });
 
@@ -93,11 +94,15 @@ export async function GET(req: Request) {
     // Processar Streak (Semana Atual - Domingo a Sábado)
     const streak = [];
     
-    // Transforma as datas dos logs (que estão em UTC no banco) para a data real no Brasil
-    const logDates = new Set(workoutLogs.map(log => {
+    const logDates = new Map<string, string>();
+    workoutLogs.forEach(log => {
       const brDate = new Date(log.date.getTime() - (3 * 60 * 60 * 1000)); // Aplica -03:00 manual
-      return brDate.toISOString().split('T')[0];
-    }));
+      const dateStr = brDate.toISOString().split('T')[0];
+      // Priorizar COMPLETED se houver múltiplos logs no mesmo dia
+      if (log.status === 'COMPLETED' || !logDates.has(dateStr)) {
+        logDates.set(dateStr, log.status);
+      }
+    });
 
     // today já foi declarado no início do arquivo
     // Reutilizar o targetDate (Domingo) que já calculamos no início
@@ -110,16 +115,19 @@ export async function GET(req: Request) {
       
       const isFuture = d > today;
       const isTodayDate = d.getTime() === today.getTime();
-      const completed = logDates.has(dateStr);
+      const logStatus = logDates.get(dateStr);
+      const completed = logStatus === 'COMPLETED';
+      const inProgress = logStatus === 'IN_PROGRESS' || logStatus === 'CARDIO';
       
       const dayIndex = d.getDay();
       const isRestDay = !activeWorkouts.some(w => w.daysOfWeek.includes(String(dayIndex)));
-      const missedWorkout = !isFuture && !completed && !isRestDay;
+      const missedWorkout = !isFuture && !completed && !inProgress && !isRestDay;
       
       streak.push({
         date: dateStr,
         dayName: ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'][i],
         completed,
+        inProgress,
         isToday: isTodayDate,
         isFuture,
         isRestDay,

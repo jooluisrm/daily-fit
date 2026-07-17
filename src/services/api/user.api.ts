@@ -8,6 +8,8 @@ export interface UpdateProfileData {
   weight?: number | '';
   gender?: string;
   restTimeGoal?: number | '';
+  defaultSets?: number | '';
+  defaultReps?: string;
 }
 
 export const UserAPI = {
