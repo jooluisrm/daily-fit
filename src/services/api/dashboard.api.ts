@@ -14,6 +14,10 @@ export type DashboardStats = {
     missedWorkout: boolean;
   }[];
   volumeByWorkout: Record<string, number>;
+  lastWeekTotalWorkouts: number;
+  lastWeekTotalVolume: number;
+  lastWeekTotalCardioMinutes: number;
+  lastWeekVolumeByWorkout: Record<string, number>;
   activeWorkouts: {
     id: string;
     name: string;

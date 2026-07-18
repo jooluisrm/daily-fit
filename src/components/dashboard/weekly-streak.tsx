@@ -18,7 +18,8 @@ export function WeeklyStreak({ streak }: { streak: StreakDay[] }) {
   if (!streak || streak.length === 0) return null
 
   return (
-    <Card className="bg-zinc-900 border-zinc-800">
+    <Card className="bg-gradient-to-br from-zinc-900/90 to-zinc-950 border-zinc-800/50 relative overflow-hidden group hover:border-zinc-700/50 transition-all hover:scale-[1.02] shadow-sm">
+      <div className="absolute -left-6 -top-6 w-32 h-32 bg-primary/5 rounded-full blur-3xl group-hover:bg-primary/10 transition-colors pointer-events-none" />
       <CardHeader className="pb-4">
         <CardTitle className="text-base font-semibold text-white">Sequência da Semana</CardTitle>
       </CardHeader>

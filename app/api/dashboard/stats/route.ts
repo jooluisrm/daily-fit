@@ -23,6 +23,10 @@ export async function GET(req: Request) {
     const targetDate = new Date(today);
     targetDate.setDate(today.getDate() - today.getDay());
 
+    // Domingo da semana passada
+    const lastWeekTargetDate = new Date(targetDate);
+    lastWeekTargetDate.setDate(targetDate.getDate() - 7);
+
     // 0. Treinos Ativos
     const activeWorkouts = await prisma.workout.findMany({
       where: { userId, isActive: true },
@@ -79,7 +83,36 @@ export async function GET(req: Request) {
       }
     });
 
-    // Processar Totais
+    // --- DADOS DA SEMANA PASSADA ---
+    const lastWeekWorkoutLogs = await prisma.workoutLog.findMany({
+      where: {
+        userId,
+        date: { gte: lastWeekTargetDate, lt: targetDate }
+      },
+      select: { date: true, status: true }
+    });
+
+    const lastWeekExerciseLogs = await prisma.exerciseLog.findMany({
+      where: {
+        workoutExercise: { workout: { userId } },
+        date: { gte: lastWeekTargetDate, lt: targetDate }
+      },
+      select: {
+        weight: true,
+        repsDone: true,
+        workoutExercise: { select: { workoutId: true } }
+      }
+    });
+
+    const lastWeekCardioLogs = await prisma.cardioLog.findMany({
+      where: {
+        userId,
+        date: { gte: lastWeekTargetDate, lt: targetDate }
+      },
+      select: { duration: true }
+    });
+
+    // Processar Totais Atuais
     const totalWorkouts = workoutLogs.length;
     const totalVolume = exerciseLogs.reduce((acc, log) => acc + (log.weight * log.repsDone), 0);
     const totalCardioMinutes = cardioLogs.reduce((acc, log) => acc + log.duration, 0);
@@ -89,6 +122,18 @@ export async function GET(req: Request) {
       const vol = log.weight * log.repsDone;
       const wId = log.workoutExercise.workoutId;
       volumeByWorkout[wId] = (volumeByWorkout[wId] || 0) + vol;
+    });
+
+    // Processar Totais da Semana Passada
+    const lastWeekTotalWorkouts = lastWeekWorkoutLogs.length;
+    const lastWeekTotalVolume = lastWeekExerciseLogs.reduce((acc, log) => acc + (log.weight * log.repsDone), 0);
+    const lastWeekTotalCardioMinutes = lastWeekCardioLogs.reduce((acc, log) => acc + log.duration, 0);
+
+    const lastWeekVolumeByWorkout: Record<string, number> = {};
+    lastWeekExerciseLogs.forEach(log => {
+      const vol = log.weight * log.repsDone;
+      const wId = log.workoutExercise.workoutId;
+      lastWeekVolumeByWorkout[wId] = (lastWeekVolumeByWorkout[wId] || 0) + vol;
     });
 
     // Processar Streak (Semana Atual - Domingo a Sábado)
@@ -141,6 +186,10 @@ export async function GET(req: Request) {
       totalCardioMinutes,
       streak,
       volumeByWorkout,
+      lastWeekTotalWorkouts,
+      lastWeekTotalVolume,
+      lastWeekTotalCardioMinutes,
+      lastWeekVolumeByWorkout,
       activeWorkouts: activeWorkouts.map(w => ({ id: w.id, name: w.name }))
     });
   } catch (error: any) {

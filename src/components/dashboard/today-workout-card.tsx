@@ -51,10 +51,18 @@ export function TodayWorkoutCard() {
     avgTime = count > 0 ? Math.round(totalMins / count) : 0
   }
 
+  const formatDuration = (minutes: number) => {
+    if (minutes < 60) return `${minutes} min`
+    const h = Math.floor(minutes / 60)
+    const m = minutes % 60
+    return m > 0 ? `${h}h ${m}min` : `${h}h`
+  }
+
   const firstExerciseImg = exercises?.find(ex => ex.isActive)?.exercise?.imageUrl
 
   return (
-    <Card className={`relative overflow-hidden bg-zinc-900 border-zinc-800 h-full transition-all ${isCompleted ? 'border-emerald-500/30 bg-emerald-950/10' : ''}`}>
+    <Card className={`relative overflow-hidden bg-gradient-to-br from-zinc-900/90 to-zinc-950 border-zinc-800/50 flex flex-col h-full transition-all group hover:border-zinc-700/50 hover:scale-[1.02] shadow-sm ${isCompleted ? 'border-emerald-500/30 shadow-[0_0_20px_rgba(16,185,129,0.05)]' : ''}`}>
+      <div className="absolute -left-12 -bottom-12 w-32 h-32 bg-primary/5 rounded-full blur-3xl group-hover:bg-primary/10 transition-colors pointer-events-none" />
       {firstExerciseImg && (
         <>
           <img
@@ -103,13 +111,13 @@ export function TodayWorkoutCard() {
             {avgTime > 0 && (
               <div className="flex items-center gap-1.5 text-sm text-zinc-300 bg-zinc-900/60 backdrop-blur-md border border-zinc-800/80 px-2.5 py-1.5 rounded-md font-medium shadow-sm">
                 <Timer className="w-4 h-4 text-primary" />
-                ~ {avgTime} min
+                ~ {formatDuration(avgTime)}
               </div>
             )}
           </div>
         )}
         <Link href={todayWorkout ? `/treino` : "/treino?tab=list"} className="block mt-auto">
-          <Button className="w-full text-base font-medium h-11" variant={todayWorkout ? (isCompleted ? "outline" : "default") : "secondary"}>
+          <Button className={`w-full text-base font-medium h-11 transition-all ${isWorkoutActive ? "animate-pulse shadow-[0_0_15px_rgba(var(--primary-color),0.3)]" : ""}`} variant={todayWorkout ? (isCompleted ? "outline" : "default") : "secondary"}>
             {todayWorkout ? (isWorkoutActive ? "Continuar Treino" : (isCompleted ? "Ver Treino" : "Ir para Treino")) : "Ver Todos os Treinos"}
           </Button>
         </Link>
