@@ -639,7 +639,12 @@ export function TreinoFocusView({ workoutId, exercises, onFinishAll, onClose }: 
                             pendingExercisesList={pendingExercisesList}
                             setCurrentIndex={setCurrentIndex}
                             setCurrentSet={setCurrentSet}
-                            setPhase={() => {}} 
+                            setPhase={(phase) => {
+                              if (phase === 'CARDIO_PROMPT') {
+                                setDirection(1)
+                                setCurrentIndex(prev => prev + 1)
+                              }
+                            }} 
                             setIsViewingHistory={setIsViewingHistory}
                           />
                         )}

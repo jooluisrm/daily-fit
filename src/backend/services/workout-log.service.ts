@@ -64,8 +64,8 @@ export class WorkoutLogService {
   /**
    * Inicia o treino criando a sessão.
    */
-  static async startWorkout(userId: string, workoutId: string) {
-    const allTodayLogs = await this.getAllTodayWorkoutLogs(userId);
+  static async startWorkout(userId: string, workoutId: string, startIso?: string, endIso?: string) {
+    const allTodayLogs = await this.getAllTodayWorkoutLogs(userId, startIso, endIso);
     
     // Verifica se já existe um treino ativo (IN_PROGRESS ou CARDIO)
     const inProgressLog = allTodayLogs.find(log => log.status === 'IN_PROGRESS' || log.status === 'CARDIO');
@@ -89,8 +89,8 @@ export class WorkoutLogService {
   /**
    * Atualiza o status do treino.
    */
-  static async updateWorkoutStatus(userId: string, workoutId: string, status: string, hasCardio?: boolean) {
-    const existingLog = await this.getTodayWorkoutLog(userId, workoutId);
+  static async updateWorkoutStatus(userId: string, workoutId: string, status: string, hasCardio?: boolean, startIso?: string, endIso?: string) {
+    const existingLog = await this.getTodayWorkoutLog(userId, workoutId, startIso, endIso);
     if (!existingLog) throw new Error("Treino não iniciado hoje.");
 
     const dataToUpdate: any = { status };
@@ -106,8 +106,8 @@ export class WorkoutLogService {
   /**
    * Desfaz a finalização (ou deleta a sessão se cancelada).
    */
-  static async toggleWorkoutLog(userId: string, workoutId: string, isCompleted: boolean) {
-    const existingLog = await this.getTodayWorkoutLog(userId, workoutId);
+  static async toggleWorkoutLog(userId: string, workoutId: string, isCompleted: boolean, startIso?: string, endIso?: string) {
+    const existingLog = await this.getTodayWorkoutLog(userId, workoutId, startIso, endIso);
     
     if (!isCompleted) {
       if (existingLog) {
@@ -120,7 +120,7 @@ export class WorkoutLogService {
     }
 
     if (existingLog) {
-      return await this.updateWorkoutStatus(userId, workoutId, "COMPLETED");
+      return await this.updateWorkoutStatus(userId, workoutId, "COMPLETED", undefined, startIso, endIso);
     }
 
     return await prisma.workoutLog.create({

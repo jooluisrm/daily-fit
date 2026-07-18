@@ -36,9 +36,10 @@ export const useTodayAllWorkoutLogs = () => {
 
 export const useStartWorkout = (workoutId: string | undefined) => {
   const queryClient = useQueryClient();
+  const { startIso, endIso } = getLocalDayBounds();
 
   return useMutation({
-    mutationFn: () => WorkoutLogAPI.startWorkout(workoutId!),
+    mutationFn: () => WorkoutLogAPI.startWorkout(workoutId!, startIso, endIso),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['workout-status', workoutId] });
       queryClient.invalidateQueries({ queryKey: ['today-all-workout-logs'] });
@@ -48,10 +49,11 @@ export const useStartWorkout = (workoutId: string | undefined) => {
 
 export const useUpdateWorkoutStatus = (workoutId: string | undefined) => {
   const queryClient = useQueryClient();
+  const { startIso, endIso } = getLocalDayBounds();
 
   return useMutation({
     mutationFn: ({ status, hasCardio }: { status: string, hasCardio?: boolean }) => 
-      WorkoutLogAPI.updateWorkoutStatus(workoutId!, status, hasCardio),
+      WorkoutLogAPI.updateWorkoutStatus(workoutId!, status, hasCardio, startIso, endIso),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['workout-status', workoutId] });
       queryClient.invalidateQueries({ queryKey: ['today-all-workout-logs'] });
@@ -61,10 +63,11 @@ export const useUpdateWorkoutStatus = (workoutId: string | undefined) => {
 
 export const useToggleWorkoutStatus = (workoutId: string | undefined) => {
   const queryClient = useQueryClient();
+  const { startIso, endIso } = getLocalDayBounds();
 
   return useMutation({
     mutationFn: (isCompleted: boolean) => 
-      WorkoutLogAPI.toggleWorkoutStatus(workoutId!, isCompleted),
+      WorkoutLogAPI.toggleWorkoutStatus(workoutId!, isCompleted, startIso, endIso),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['workout-status', workoutId] });
       queryClient.invalidateQueries({ queryKey: ['today-all-workout-logs'] });

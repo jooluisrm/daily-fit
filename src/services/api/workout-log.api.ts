@@ -24,18 +24,18 @@ export const WorkoutLogAPI = {
     return response.data;
   },
 
-  startWorkout: async (workoutId: string): Promise<WorkoutLog> => {
-    const response = await api.post(`/workouts/${workoutId}/status`, { action: 'start' });
+  startWorkout: async (workoutId: string, startIso?: string, endIso?: string): Promise<WorkoutLog> => {
+    const response = await api.post(`/workouts/${workoutId}/status`, { action: 'start', startIso, endIso });
     return response.data;
   },
 
-  updateWorkoutStatus: async (workoutId: string, status: string, hasCardio?: boolean): Promise<WorkoutLog> => {
-    const response = await api.post(`/workouts/${workoutId}/status`, { action: 'update_status', status, hasCardio });
+  updateWorkoutStatus: async (workoutId: string, status: string, hasCardio?: boolean, startIso?: string, endIso?: string): Promise<WorkoutLog> => {
+    const response = await api.post(`/workouts/${workoutId}/status`, { action: 'update_status', status, hasCardio, startIso, endIso });
     return response.data;
   },
 
-  toggleWorkoutStatus: async (workoutId: string, isCompleted: boolean): Promise<WorkoutLog | null> => {
-    const response = await api.post(`/workouts/${workoutId}/status`, { isCompleted });
+  toggleWorkoutStatus: async (workoutId: string, isCompleted: boolean, startIso?: string, endIso?: string): Promise<WorkoutLog | null> => {
+    const response = await api.post(`/workouts/${workoutId}/status`, { isCompleted, startIso, endIso });
     return response.data;
   }
 };

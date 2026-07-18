@@ -39,17 +39,17 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     const data = await req.json();
 
     if (data.action === 'start') {
-      const workoutLog = await WorkoutLogService.startWorkout(session.user.id, workoutId);
+      const workoutLog = await WorkoutLogService.startWorkout(session.user.id, workoutId, data.startIso, data.endIso);
       return NextResponse.json(workoutLog);
     }
 
     if (data.action === 'update_status') {
-      const workoutLog = await WorkoutLogService.updateWorkoutStatus(session.user.id, workoutId, data.status, data.hasCardio);
+      const workoutLog = await WorkoutLogService.updateWorkoutStatus(session.user.id, workoutId, data.status, data.hasCardio, data.startIso, data.endIso);
       return NextResponse.json(workoutLog);
     }
 
     if (data.isCompleted !== undefined) {
-      const workoutLog = await WorkoutLogService.toggleWorkoutLog(session.user.id, workoutId, data.isCompleted);
+      const workoutLog = await WorkoutLogService.toggleWorkoutLog(session.user.id, workoutId, data.isCompleted, data.startIso, data.endIso);
       return NextResponse.json(workoutLog || { message: 'Treino reaberto com sucesso' });
     }
 

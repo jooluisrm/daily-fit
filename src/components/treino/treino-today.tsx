@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { CheckCircle2, CalendarDays, Save, Activity, Loader2, Dumbbell, Trash2, Undo2, ArrowLeftRight, PlayCircle, Trophy, Timer, ArrowUp, ArrowDown, Minus, Star, Plus } from "lucide-react"
+import { CheckCircle2, CalendarDays, Save, Activity, Loader2, Dumbbell, Trash2, Undo2, ArrowLeftRight, PlayCircle, Trophy, Timer, ArrowUp, ArrowDown, Minus, Star, Plus, Share2 } from "lucide-react"
 import { ExerciseCard } from "@/src/components/treino/exercise-card"
 import { useWorkouts } from "@/src/hooks/use-workout"
 import { useWorkoutExercises } from "@/src/hooks/use-exercise"
@@ -26,6 +26,7 @@ import {
 import { RestTimer } from "./rest-timer"
 import { TreinoFocusView } from "./treino-focus-view"
 import { List, Focus } from "lucide-react"
+import { motion, AnimatePresence } from "framer-motion"
 
 const DAYS_MAP = ["Domingo", "Segunda-feira", "Terça-feira", "Quarta-feira", "Quinta-feira", "Sexta-feira", "Sábado"]
 
@@ -52,11 +53,13 @@ export function TreinoToday() {
   const inProgressLog = allTodayLogs?.find(l => l.status === 'IN_PROGRESS' || l.status === 'CARDIO')
   const completedLogs = allTodayLogs?.filter(l => l.status === 'COMPLETED') || []
 
-  // If there's an in-progress log, force it as todayWorkout
-  // Otherwise respect the swap or default
+  // Se há treino em progresso, forçar ele.
+  // Senão, respeitar o swap.
+  // Senão, respeitar o treino agendado pro dia.
+  // Senão (em dias de descanso), se tiver concluído algum treino hoje, mostrar ele.
   const effectiveWorkoutId = inProgressLog 
     ? inProgressLog.workoutId 
-    : (swappedWorkoutId || defaultTodayWorkout?.id)
+    : (swappedWorkoutId || defaultTodayWorkout?.id || (completedLogs && completedLogs.length > 0 ? completedLogs[completedLogs.length - 1].workoutId : undefined))
 
   const todayWorkout = workouts?.find(w => w.id === effectiveWorkoutId)
 
@@ -83,7 +86,9 @@ export function TreinoToday() {
     if (swapData) {
       try {
         const { date, workoutId } = JSON.parse(swapData)
-        if (date === new Date().toISOString().split('T')[0]) {
+        // Usa a data local no formato PT-BR para ignorar o UTC
+        const todayStr = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+        if (date === todayStr) {
           setSwappedWorkoutId(workoutId)
         }
       } catch (e) {}
@@ -96,8 +101,9 @@ export function TreinoToday() {
 
   const handleSwap = (workoutId: string) => {
     setSwappedWorkoutId(workoutId)
+    const todayStr = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
     localStorage.setItem('daily-fit-swap', JSON.stringify({
-      date: new Date().toISOString().split('T')[0],
+      date: todayStr,
       workoutId
     }))
   }
@@ -490,10 +496,35 @@ export function TreinoToday() {
       exerciseDurationMins = Math.max(0, workoutDurationMins - cardioDurationMins)
     }
 
+    const totalTodayVolume = processedExercises.reduce((acc, ex) => acc + ex.todayVolume, 0)
+    const totalPreviousVolume = processedExercises.reduce((acc, ex) => acc + ex.previousVolume, 0)
+    
+    let totalVolumeStatus = 'equal'
+    if (totalPreviousVolume === 0 && totalTodayVolume > 0) totalVolumeStatus = 'new'
+    else if (totalTodayVolume > totalPreviousVolume) totalVolumeStatus = 'up'
+    else if (totalTodayVolume < totalPreviousVolume) totalVolumeStatus = 'down'
+
+    const containerVariants = {
+      hidden: { opacity: 0 },
+      visible: {
+        opacity: 1,
+        transition: { staggerChildren: 0.1 }
+      }
+    }
+    
+    const itemVariants = {
+      hidden: { y: 20, opacity: 0 },
+      visible: { y: 0, opacity: 1, transition: { type: "spring" as const, stiffness: 100 } }
+    }
+
+    const totalDuration = exerciseDurationMins + cardioDurationMins;
+    const exercisePercent = totalDuration > 0 ? (exerciseDurationMins / totalDuration) * 100 : 0;
+    const cardioPercent = totalDuration > 0 ? (cardioDurationMins / totalDuration) * 100 : 0;
+
     return (
-      <div className="space-y-8 animate-in fade-in duration-300 pb-24">
+      <div className="space-y-6 sm:space-y-8 animate-in fade-in duration-500 pb-24">
         {completedLogs.length > 1 && (
-          <div className="flex gap-1 p-1 bg-zinc-900 border border-zinc-800 rounded-xl overflow-x-auto w-full sm:w-auto">
+          <div className="flex gap-1 p-1 bg-zinc-900 border border-zinc-800 rounded-xl overflow-x-auto w-full sm:w-auto no-scrollbar">
             {completedLogs.map((log: any) => (
               <button
                 key={log.id}
@@ -511,46 +542,108 @@ export function TreinoToday() {
         )}
 
         {renderHeader()}
-        <div className="flex flex-col items-center justify-center py-12 px-4 text-center border border-zinc-800 rounded-2xl bg-zinc-900/50 shadow-2xl relative overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-b from-primary/10 to-transparent opacity-50"></div>
-          <Trophy className="w-16 h-16 text-yellow-500 mb-4 relative z-10" />
-          <h2 className="text-3xl font-bold text-white mb-2 relative z-10">Treino Concluído! 🏆</h2>
-          <p className="text-zinc-400 mb-6 max-w-md relative z-10 text-base">Excelente trabalho! Aqui está o resumo do seu desempenho hoje.</p>
+        
+        {/* HERO SECTION */}
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.5, type: "spring" }}
+          className="relative w-full overflow-hidden rounded-3xl border border-zinc-800/80 bg-zinc-950/60 shadow-2xl backdrop-blur-xl mt-6"
+        >
+          <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/10 via-transparent to-primary/10 opacity-60"></div>
           
-          <div className="grid grid-cols-2 gap-4 w-full max-w-md relative z-10 mb-4">
-            <div className="bg-zinc-950 border border-zinc-800 p-4 rounded-xl text-center">
-              <Dumbbell className="w-6 h-6 text-primary mx-auto mb-2" />
-              <div className="text-2xl font-bold text-white">{doneExercises.length}</div>
-              <div className="text-xs text-zinc-500 uppercase tracking-wider">Exercícios Feitos</div>
-            </div>
-            <div className="bg-zinc-950 border border-zinc-800 p-4 rounded-xl text-center">
-              <Timer className="w-6 h-6 text-amber-500 mx-auto mb-2" />
-              <div className="text-2xl font-bold text-white">{workoutDurationMins > 0 ? `${workoutDurationMins}m` : '-'}</div>
-              <div className="text-xs text-zinc-500 uppercase tracking-wider">Tempo Total</div>
-            </div>
-          </div>
+          <div className="relative z-10 flex flex-col items-center p-8 sm:p-12 text-center">
+            <motion.div
+              initial={{ scale: 0, rotate: -20 }}
+              animate={{ scale: 1, rotate: 0 }}
+              transition={{ delay: 0.2, type: "spring", bounce: 0.5 }}
+              className="w-24 h-24 mb-6 rounded-full bg-yellow-500/20 flex items-center justify-center shadow-[0_0_50px_rgba(234,179,8,0.3)] border border-yellow-500/30"
+            >
+              <Trophy className="w-12 h-12 text-yellow-500 drop-shadow-[0_0_10px_rgba(234,179,8,0.5)]" />
+            </motion.div>
+            
+            <h2 className="text-4xl sm:text-5xl font-black text-white mb-3 tracking-tight">
+              Treino Concluído!
+            </h2>
+            <p className="text-zinc-400 max-w-md text-base sm:text-lg mb-8">
+              Você dominou esse treino. O corpo que você quer, construído dia após dia.
+            </p>
 
-          <div className="flex gap-2 w-full max-w-md relative z-10">
-            <div className="flex-1 bg-zinc-950 border border-zinc-800 p-3 rounded-xl flex items-center justify-between px-4">
-              <span className="text-xs text-zinc-500 uppercase tracking-wider font-bold">Musculação</span>
-              <span className="font-bold text-white">{workoutDurationMins > 0 ? `${exerciseDurationMins}m` : '-'}</span>
-            </div>
-            <div className="flex-1 bg-zinc-950 border border-zinc-800 p-3 rounded-xl flex items-center justify-between px-4">
-              <span className="text-xs text-zinc-500 uppercase tracking-wider font-bold">Cardio</span>
-              <span className="font-bold text-emerald-500">{cardioDurationMins > 0 ? `${cardioDurationMins}m` : '-'}</span>
-            </div>
+            <Button 
+              variant="outline" 
+              className="rounded-full bg-white/5 border-white/10 hover:bg-white/10 text-white font-medium shadow-sm transition-all active:scale-95"
+              onClick={() => alert("Compartilhar com redes sociais - Em breve!")}
+            >
+              <Share2 className="w-4 h-4 mr-2" /> Compartilhar Conquista
+            </Button>
           </div>
-        </div>
+          
+          {/* QUICK STATS */}
+          <div className="relative z-10 border-t border-zinc-800/80 bg-black/40 p-6 sm:p-8">
+            <div className="grid grid-cols-3 gap-4 sm:gap-8 max-w-2xl mx-auto">
+              <div className="flex flex-col items-center">
+                <span className="text-4xl sm:text-6xl font-black text-white mb-1 drop-shadow-md">{doneExercises.length}</span>
+                <span className="text-[10px] sm:text-sm font-bold text-zinc-500 uppercase tracking-widest text-center">Exercícios</span>
+              </div>
+              <div className="flex flex-col items-center">
+                <span className="text-4xl sm:text-6xl font-black text-white mb-1 drop-shadow-md">{workoutDurationMins > 0 ? `${workoutDurationMins}m` : '-'}</span>
+                <span className="text-[10px] sm:text-sm font-bold text-zinc-500 uppercase tracking-widest text-center">Tempo</span>
+              </div>
+              <div className="flex flex-col items-center">
+                <div className="flex items-start gap-1">
+                  <span className="text-4xl sm:text-6xl font-black text-white mb-1 drop-shadow-md">{totalTodayVolume}</span>
+                </div>
+                <div className="flex items-center gap-1 mt-1">
+                  <span className="text-[10px] sm:text-sm font-bold text-zinc-500 uppercase tracking-widest text-center">Volume</span>
+                  {totalVolumeStatus === 'up' && <ArrowUp className="w-3 h-3 sm:w-4 sm:h-4 text-emerald-500" />}
+                  {totalVolumeStatus === 'down' && <ArrowDown className="w-3 h-3 sm:w-4 sm:h-4 text-red-500" />}
+                </div>
+              </div>
+            </div>
 
+            {/* BARRA DE PROGRESSO VISUAL */}
+            {workoutDurationMins > 0 && (
+              <div className="max-w-2xl mx-auto mt-8 space-y-2">
+                <div className="flex justify-between text-xs font-bold uppercase tracking-wider">
+                  <span className="text-primary">{exerciseDurationMins}m Musculação</span>
+                  {cardioDurationMins > 0 && <span className="text-emerald-500">{cardioDurationMins}m Cardio</span>}
+                </div>
+                <div className="h-2.5 w-full rounded-full bg-zinc-900 overflow-hidden flex shadow-inner">
+                  <motion.div 
+                    initial={{ width: 0 }}
+                    animate={{ width: `${exercisePercent}%` }}
+                    transition={{ duration: 1, delay: 0.5, ease: "easeOut" }}
+                    className="h-full bg-primary" 
+                  />
+                  {cardioPercent > 0 && (
+                    <motion.div 
+                      initial={{ width: 0 }}
+                      animate={{ width: `${cardioPercent}%` }}
+                      transition={{ duration: 1, delay: 0.5, ease: "easeOut" }}
+                      className="h-full bg-emerald-500" 
+                    />
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        </motion.div>
+
+        {/* DESEMPENHO DE HOJE */}
         {doneExercises.length > 0 && (
-          <div className="space-y-4">
-            <h3 className="text-xl font-bold text-white flex items-center gap-2">
-              <Activity className="w-5 h-5 text-emerald-500" />
+          <motion.div 
+            variants={containerVariants}
+            initial="hidden"
+            animate="visible"
+            className="space-y-6 mt-12"
+          >
+            <h3 className="text-xl sm:text-2xl font-bold text-white flex items-center gap-2 px-1">
+              <Activity className="w-6 h-6 text-emerald-500" />
               Desempenho de Hoje
             </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {doneExercises.map(ex => {
-                let volumeStatus = 'equal' // equal, up, down, new
+                let volumeStatus = 'equal'
                 if (!ex.hasPreviousHistory) volumeStatus = 'new'
                 else if (ex.todayVolume > ex.previousVolume) volumeStatus = 'up'
                 else if (ex.todayVolume < ex.previousVolume) volumeStatus = 'down'
@@ -561,86 +654,84 @@ export function TreinoToday() {
                 else if (ex.todayMaxWeight < ex.previousMaxWeight) weightStatus = 'down'
 
                 return (
-                  <div key={ex.id} className="bg-zinc-900/50 border border-zinc-800 p-4 rounded-xl flex flex-col gap-4">
-                    <div className="flex items-center gap-3">
+                  <motion.div 
+                    variants={itemVariants}
+                    key={ex.id} 
+                    className="bg-zinc-950/80 border border-zinc-800/80 p-5 rounded-2xl flex flex-col gap-5 shadow-lg backdrop-blur-sm hover:border-zinc-700 transition-colors"
+                  >
+                    <div className="flex items-center gap-4">
                       {ex.exercise.imageUrl ? (
-                        <img src={ex.exercise.imageUrl} alt={ex.exercise.name} className="w-12 h-12 rounded-lg object-cover bg-zinc-800" />
+                        <div className="relative">
+                          <img src={ex.exercise.imageUrl} alt={ex.exercise.name} className="w-14 h-14 rounded-xl object-cover bg-zinc-900 border border-zinc-800" />
+                          <div className="absolute -bottom-2 -right-2 bg-emerald-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-md border border-zinc-950 shadow-sm">
+                            {ex.todayLogs.length}s
+                          </div>
+                        </div>
                       ) : (
-                        <div className="w-12 h-12 rounded-lg bg-zinc-800 flex items-center justify-center">
-                          <Dumbbell className="w-6 h-6 text-zinc-500" />
+                        <div className="relative">
+                          <div className="w-14 h-14 rounded-xl bg-zinc-900 border border-zinc-800 flex items-center justify-center">
+                            <Dumbbell className="w-7 h-7 text-zinc-600" />
+                          </div>
+                          <div className="absolute -bottom-2 -right-2 bg-emerald-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-md border border-zinc-950 shadow-sm">
+                            {ex.todayLogs.length}s
+                          </div>
                         </div>
                       )}
-                      <div>
-                        <h4 className="font-bold text-white text-base leading-tight">{ex.exercise.name}</h4>
-                        <p className="text-xs text-zinc-400 mt-0.5">{ex.todayLogs.length} séries feitas</p>
+                      <div className="flex-1">
+                        <h4 className="font-bold text-white text-lg leading-tight">{ex.exercise.name}</h4>
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid grid-cols-2 gap-3">
                       {/* Carga Máxima */}
-                      <div className="bg-zinc-950 rounded-lg p-2.5 border border-zinc-800/80">
-                        <div className="text-[10px] text-zinc-500 uppercase font-bold tracking-wider mb-1 flex justify-between">
-                          <span>Carga Máxima</span>
-                          {weightStatus !== 'new' && <span className="text-zinc-600 font-medium">Ant: {ex.previousMaxWeight}kg</span>}
-                        </div>
-                        <div className="flex items-end justify-between">
-                          <span className="font-mono text-base font-bold text-zinc-200">{ex.todayMaxWeight}kg</span>
-                          <div className="flex items-center">
-                            {weightStatus === 'new' && <Star className="w-4 h-4 text-yellow-500 mb-0.5" />}
-                            {weightStatus === 'up' && <ArrowUp className="w-4 h-4 text-emerald-500 mb-0.5" />}
-                            {weightStatus === 'down' && <ArrowDown className="w-4 h-4 text-red-500 mb-0.5" />}
-                            {weightStatus === 'equal' && <Minus className="w-4 h-4 text-zinc-500 mb-0.5" />}
-                          </div>
+                      <div className="flex flex-col gap-1 bg-black/40 rounded-xl p-3 border border-white/5">
+                        <span className="text-[10px] text-zinc-500 uppercase font-bold tracking-wider">Carga Máxima</span>
+                        <div className="flex items-center justify-between mt-1">
+                          <span className="text-xl font-bold text-white">{ex.todayMaxWeight}kg</span>
+                          {weightStatus === 'new' && <span className="bg-yellow-500/20 text-yellow-500 text-[10px] font-bold px-2 py-1 rounded-full flex items-center"><Star className="w-3 h-3 mr-1" />NOVO</span>}
+                          {weightStatus === 'up' && <span className="bg-emerald-500/20 text-emerald-400 text-[10px] font-bold px-2 py-1 rounded-full flex items-center">+{ex.todayMaxWeight - ex.previousMaxWeight}kg <ArrowUp className="w-3 h-3 ml-0.5" /></span>}
+                          {weightStatus === 'down' && <span className="bg-red-500/20 text-red-400 text-[10px] font-bold px-2 py-1 rounded-full flex items-center">{ex.todayMaxWeight - ex.previousMaxWeight}kg <ArrowDown className="w-3 h-3 ml-0.5" /></span>}
+                          {weightStatus === 'equal' && <span className="bg-zinc-800 text-zinc-400 text-[10px] font-bold px-2 py-1 rounded-full flex items-center">MANTEVE</span>}
                         </div>
                       </div>
                       
                       {/* Volume Total */}
-                      <div className="bg-zinc-950 rounded-lg p-2.5 border border-zinc-800/80">
-                        <div className="text-[10px] text-zinc-500 uppercase font-bold tracking-wider mb-1 flex justify-between">
-                          <span>Volume Total</span>
-                          {volumeStatus !== 'new' && <span className="text-zinc-600 font-medium">Ant: {ex.previousVolume}</span>}
-                        </div>
-                        <div className="flex items-end justify-between">
-                          <span className="font-mono text-base font-bold text-zinc-200">{ex.todayVolume}</span>
-                          <div className="flex items-center">
-                            {volumeStatus === 'new' && <Star className="w-4 h-4 text-yellow-500 mb-0.5" />}
-                            {volumeStatus === 'up' && <ArrowUp className="w-4 h-4 text-emerald-500 mb-0.5" />}
-                            {volumeStatus === 'down' && <ArrowDown className="w-4 h-4 text-red-500 mb-0.5" />}
-                            {volumeStatus === 'equal' && <Minus className="w-4 h-4 text-zinc-500 mb-0.5" />}
-                          </div>
+                      <div className="flex flex-col gap-1 bg-black/40 rounded-xl p-3 border border-white/5">
+                        <span className="text-[10px] text-zinc-500 uppercase font-bold tracking-wider">Volume Total</span>
+                        <div className="flex items-center justify-between mt-1">
+                          <span className="text-xl font-bold text-white">{ex.todayVolume}</span>
+                          {volumeStatus === 'new' && <span className="bg-yellow-500/20 text-yellow-500 text-[10px] font-bold px-2 py-1 rounded-full flex items-center"><Star className="w-3 h-3 mr-1" />NOVO</span>}
+                          {volumeStatus === 'up' && <span className="bg-emerald-500/20 text-emerald-400 text-[10px] font-bold px-2 py-1 rounded-full flex items-center">+{ex.todayVolume - ex.previousVolume} <ArrowUp className="w-3 h-3 ml-0.5" /></span>}
+                          {volumeStatus === 'down' && <span className="bg-red-500/20 text-red-400 text-[10px] font-bold px-2 py-1 rounded-full flex items-center">{ex.todayVolume - ex.previousVolume} <ArrowDown className="w-3 h-3 ml-0.5" /></span>}
+                          {volumeStatus === 'equal' && <span className="bg-zinc-800 text-zinc-400 text-[10px] font-bold px-2 py-1 rounded-full flex items-center">MANTEVE</span>}
                         </div>
                       </div>
                     </div>
-                  </div>
+                  </motion.div>
                 )
               })}
             </div>
-          </div>
+          </motion.div>
         )}
 
+        {/* EXERCÍCIOS PULADOS */}
         {skippedExercises.length > 0 && (
-          <div className="space-y-4 pt-4 border-t border-zinc-800/50">
-            <h3 className="text-xl font-bold text-zinc-400 flex items-center gap-2">
-              <Trash2 className="w-5 h-5 text-zinc-500" />
+          <div className="mt-12">
+            <h3 className="text-sm font-bold text-zinc-500 uppercase tracking-widest flex items-center gap-2 mb-4 px-2">
+              <Trash2 className="w-4 h-4" />
               Exercícios Pulados
             </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 opacity-60">
+            <div className="flex flex-wrap gap-2 opacity-50">
               {skippedExercises.map(ex => (
-                <div key={ex.id} className="bg-zinc-900/30 border border-zinc-800/50 p-3 rounded-xl flex items-center gap-3 grayscale">
-                  {ex.exercise.imageUrl ? (
-                    <img src={ex.exercise.imageUrl} alt={ex.exercise.name} className="w-10 h-10 rounded-lg object-cover bg-zinc-800/50" />
-                  ) : (
-                    <div className="w-10 h-10 rounded-lg bg-zinc-800/50 flex items-center justify-center">
-                      <Dumbbell className="w-5 h-5 text-zinc-600" />
-                    </div>
-                  )}
-                  <h4 className="font-medium text-zinc-400 text-sm line-through">{ex.exercise.name}</h4>
+                <div key={ex.id} className="bg-zinc-900 border border-zinc-800 px-3 py-1.5 rounded-full flex items-center gap-2 grayscale text-xs font-medium text-zinc-400 line-through">
+                  {ex.exercise.name}
                 </div>
               ))}
             </div>
           </div>
         )}
       </div>
+
     )
   }
 
