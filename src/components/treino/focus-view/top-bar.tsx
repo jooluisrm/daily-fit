@@ -14,6 +14,7 @@ interface TopBarProps {
   setIsSummaryModalOpen: (open: boolean) => void
   progressPercent: number
   isHistoryMode: boolean
+  isRestFinished: boolean
 }
 
 export function TopBar({
@@ -26,7 +27,8 @@ export function TopBar({
   setIsViewingHistory,
   setIsSummaryModalOpen,
   progressPercent,
-  isHistoryMode
+  isHistoryMode,
+  isRestFinished
 }: TopBarProps) {
   const numExercises = steps.filter(s => s.type === 'EXERCISE').length
   const isPostWorkout = currentIndex >= numExercises
@@ -53,9 +55,11 @@ export function TopBar({
               onClick={() => {
                 setCurrentIndex(numExercises - 1)
               }}
-              className="relative rounded-full flex-shrink-0 flex items-center justify-center overflow-hidden cursor-pointer bg-primary/20 border border-primary/50 shadow-[0_0_15px_rgba(var(--primary),0.3)] h-10 hover:bg-primary/30 transition-colors"
+              className="relative rounded-full flex-shrink-0 flex items-center justify-center overflow-hidden cursor-pointer bg-zinc-800 h-10 opacity-50 hover:opacity-80 transition-colors"
             >
-              <CheckCircle2 className="w-5 h-5 text-primary" />
+              <div className="absolute inset-0 rounded-full bg-primary/80 backdrop-blur-sm flex items-center justify-center">
+                <CheckCircle2 className="w-5 h-5 text-white" />
+              </div>
             </motion.div>
           )}
 
@@ -148,7 +152,7 @@ export function TopBar({
                 )}
               >
                 <Icon className={cn("w-5 h-5", isCurrent && iconColor)} />
-                {isPast && step.type !== 'COMPLETED' && step.type !== 'CARDIO' && (
+                {isPast && (
                   <div className="absolute inset-0 rounded-full bg-primary/80 backdrop-blur-sm flex items-center justify-center">
                     <CheckCircle2 className="w-5 h-5 text-white" />
                   </div>
@@ -173,7 +177,7 @@ export function TopBar({
             fill="none" 
             className={cn(
               "transition-all duration-1000 ease-out", 
-              progressPercent < 34 ? "text-red-500" : progressPercent < 67 ? "text-amber-500" : "text-emerald-500"
+              isRestFinished ? "text-emerald-500" : progressPercent < 34 ? "text-red-500" : progressPercent < 67 ? "text-amber-500" : "text-emerald-500"
             )} 
             strokeDasharray="126" 
             strokeDashoffset={126 - (126 * progressPercent) / 100} 

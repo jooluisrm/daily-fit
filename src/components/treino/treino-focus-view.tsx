@@ -103,6 +103,8 @@ export function TreinoFocusView({ workoutId, exercises, onFinishAll, onClose }: 
     return checkIsSetCompleted(activeExercises, exerciseIndex, setNum, todayStr)
   }
 
+  const isRestFinished = isResting && restTimeLeft === 0;
+
   const pendingExercisesList = useMemo(() => {
     return activeExercises.map((ex, index) => {
       const pendingSets: number[] = []
@@ -453,7 +455,7 @@ export function TreinoFocusView({ workoutId, exercises, onFinishAll, onClose }: 
               {/* Progress Bar Top */}
               <div className="absolute top-0 left-0 right-0 h-1.5 bg-zinc-900 z-50">
                 <div
-                  className={cn("h-full transition-all duration-500 ease-out", isHistoryMode ? "bg-amber-600" : "bg-primary")}
+                  className={cn("h-full transition-all duration-500 ease-out", isRestFinished ? "bg-emerald-500" : isHistoryMode ? "bg-amber-600" : "bg-primary")}
                   style={{ width: `${progressPercent}%` }}
                 />
               </div>
@@ -470,11 +472,13 @@ export function TreinoFocusView({ workoutId, exercises, onFinishAll, onClose }: 
                 <div className="absolute inset-0 z-0">
                   <AnimatePresence mode="wait">
                     <motion.div 
-                      key={currentStep.type === 'EXERCISE' ? currentStep.ex.id : currentStep.type}
+                      key={isRestFinished ? 'rest-finished' : (currentStep.type === 'EXERCISE' ? currentStep.ex.id : currentStep.type)}
                       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.5 }}
                       className="absolute inset-0"
                     >
-                      {currentStep.type === 'EXERCISE' && currentExercise?.exercise?.imageUrl ? (
+                      {isRestFinished ? (
+                         <div className="absolute inset-0 bg-gradient-to-b from-emerald-500/20 via-zinc-950/80 to-zinc-950 opacity-90 animate-pulse" />
+                      ) : currentStep.type === 'EXERCISE' && currentExercise?.exercise?.imageUrl ? (
                         <>
                           <img
                             src={currentExercise.exercise.imageUrl}
@@ -516,6 +520,7 @@ export function TreinoFocusView({ workoutId, exercises, onFinishAll, onClose }: 
                     setIsSummaryModalOpen={setIsSummaryModalOpen}
                     progressPercent={progressPercent}
                     isHistoryMode={isHistoryMode}
+                    isRestFinished={isRestFinished}
                   />
 
                   {/* Middle Content Animated */}
@@ -570,8 +575,8 @@ export function TreinoFocusView({ workoutId, exercises, onFinishAll, onClose }: 
                                       }}
                                       className={cn(
                                         "w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center font-bold text-sm sm:text-base transition-all duration-300 cursor-pointer",
-                                        isCompleted && !isCurrent ? (isHistoryMode ? "bg-amber-600 text-white shadow-[0_0_15px_rgba(245,158,11,0.5)]" : "bg-primary text-white shadow-[0_0_15px_rgba(var(--primary),0.5)]") : (!isCurrent ? "bg-zinc-900/80 text-zinc-500 backdrop-blur-md" : ""),
-                                        isCurrent ? (isHistoryMode ? "bg-amber-600 text-white ring-4 ring-amber-500/30 scale-110 shadow-[0_0_20px_rgba(245,158,11,0.8)]" : "border-2 border-primary text-primary bg-primary/10 scale-110") : "border border-zinc-800"
+                                        isCompleted && !isCurrent ? (isRestFinished ? "bg-emerald-600 text-white shadow-[0_0_15px_rgba(16,185,129,0.5)]" : isHistoryMode ? "bg-amber-600 text-white shadow-[0_0_15px_rgba(245,158,11,0.5)]" : "bg-primary text-white shadow-[0_0_15px_rgba(var(--primary),0.5)]") : (!isCurrent ? "bg-zinc-900/80 text-zinc-500 backdrop-blur-md" : ""),
+                                        isCurrent ? (isRestFinished ? (isCompleted ? "bg-emerald-600 text-white ring-4 ring-emerald-500/30 scale-110 shadow-[0_0_20px_rgba(16,185,129,0.8)]" : "border-2 border-emerald-500 text-emerald-500 bg-emerald-500/10 scale-110 shadow-[0_0_20px_rgba(16,185,129,0.3)]") : isHistoryMode ? "bg-amber-600 text-white ring-4 ring-amber-500/30 scale-110 shadow-[0_0_20px_rgba(245,158,11,0.8)]" : "border-2 border-primary text-primary bg-primary/10 scale-110") : "border border-zinc-800"
                                       )}
                                     >
                                       {isCompleted ? <CheckCircle2 className="w-5 h-5 sm:w-6 sm:h-6" /> : setNum}
