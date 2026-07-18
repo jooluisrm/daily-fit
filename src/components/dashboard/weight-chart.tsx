@@ -72,7 +72,8 @@ export function WeightChart() {
 
   return (
     <>
-      <Card className="bg-zinc-900 border-zinc-800">
+      <Card className="bg-gradient-to-br from-zinc-900/90 to-zinc-950 border-zinc-800/50 relative overflow-hidden group hover:border-zinc-700/50 transition-all shadow-sm">
+        <div className="absolute -left-12 -top-12 w-40 h-40 bg-blue-500/5 rounded-full blur-3xl group-hover:bg-blue-500/10 transition-colors pointer-events-none" />
         <CardHeader className="pb-2 flex flex-row items-start justify-between">
           <div>
             <CardTitle className="text-base font-semibold text-white flex items-center gap-2">

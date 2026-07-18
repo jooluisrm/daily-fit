@@ -52,10 +52,10 @@ export function ExerciseCard({ workoutExercise, index, isCompleted, onSetComplet
   const { mutateAsync: logExercise, isPending: isSaving } = useLogExercise(workoutId)
   const { mutateAsync: updateExercise, isPending: isUpdating } = useUpdateWorkoutExercise(workoutId)
 
-  // Extrair os dados reais do banco
   const exerciseData = workoutExercise.exercise
   const sets = workoutExercise.sets
   const reps = workoutExercise.reps
+  const isPerSide = workoutExercise.weightType === 'PER_SIDE'
 
   const todayLogsFull = useMemo(() => {
     const todayStrFull = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
@@ -105,14 +105,25 @@ export function ExerciseCard({ workoutExercise, index, isCompleted, onSetComplet
       return acc
     }, {})
 
-    historyData[0] = Object.entries(logsByDate).map(([date, data]: any) => ({
-      date,
-      weight: Math.round((data.totalWeight / data.count) * 10) / 10,
-      repsDone: Math.round((data.totalReps / data.count) * 10) / 10
-    }))
+    historyData[0] = Object.entries(logsByDate).map(([date, data]: any) => {
+      let avgWeight = Math.round((data.totalWeight / data.count) * 10) / 10
+      if (isPerSide) avgWeight = avgWeight / 2
+      
+      return {
+        date,
+        weight: avgWeight,
+        repsDone: Math.round((data.totalReps / data.count) * 10) / 10
+      }
+    })
   }
 
-  const chartData = historyData[selectedSet] || []
+  const chartData = historyData[selectedSet]?.map((log: any) => {
+    // Se não for a média geral (que já foi calculada), aplica a divisão para as séries individuais
+    if (selectedSet > 0 && isPerSide) {
+      return { ...log, weight: log.weight / 2 }
+    }
+    return log
+  }) || []
 
   const todayStr = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
   const logOfToday = chartData.find((log: any) => log.date === todayStr)
@@ -371,9 +382,12 @@ export function ExerciseCard({ workoutExercise, index, isCompleted, onSetComplet
                             )}
                           </div>
                           <div className="flex items-center gap-4">
-                            <div className="text-right">
-                              <span className="text-white font-bold">{log.weight} kg</span>
-                              <span className="text-zinc-500 text-xs ml-2">x {log.repsDone} reps</span>
+                            <div className="text-right flex flex-col items-end">
+                              <span className="text-white font-bold leading-none">{log.weight} kg</span>
+                              {isPerSide && <span className="text-[9px] text-zinc-500 uppercase tracking-wider mt-0.5">cada lado</span>}
+                            </div>
+                            <div className="text-left w-14">
+                              <span className="text-zinc-500 text-xs ml-1">x {log.repsDone} reps</span>
                             </div>
                           </div>
                         </div>
@@ -459,7 +473,10 @@ export function ExerciseCard({ workoutExercise, index, isCompleted, onSetComplet
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                   <div>
                     <p className="text-sm text-zinc-400 mb-1">Último peso nesta série:</p>
-                    <p className="text-xl font-bold text-white">{lastWeight ? `${lastWeight} kg` : "-"}</p>
+                    <p className="text-xl font-bold text-white">
+                      {lastWeight ? `${lastWeight} kg` : "-"}
+                      {lastWeight > 0 && isPerSide && <span className="text-xs text-zinc-500 uppercase tracking-wider ml-1.5">cada lado</span>}
+                    </p>
                     {lastLog && (
                       <p className="text-xs text-zinc-500 mt-1">{lastLog.repsDone} reps</p>
                     )}

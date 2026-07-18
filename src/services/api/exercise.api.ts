@@ -20,6 +20,7 @@ export type WorkoutExercise = {
   exerciseId: string;
   sets: number;
   reps: string;
+  weightType: string;
   order: number;
   isActive: boolean;
   exercise: Exercise;
@@ -37,12 +38,12 @@ export const ExerciseAPI = {
     return response.data;
   },
 
-  addExerciseToWorkout: async (workoutId: string, data: { name: string; image?: string; sets: number; reps: string }): Promise<WorkoutExercise> => {
+  addExerciseToWorkout: async (workoutId: string, data: { name: string; image?: string; sets: number; reps: string; weightType?: string }): Promise<WorkoutExercise> => {
     const response = await api.post(`/workouts/${workoutId}/exercises`, data);
     return response.data;
   },
 
-  updateWorkoutExercise: async (id: string, data: { name?: string; imageUrl?: string; sets?: number; reps?: string; isActive?: boolean }): Promise<WorkoutExercise> => {
+  updateWorkoutExercise: async (id: string, data: { name?: string; imageUrl?: string; sets?: number; reps?: string; weightType?: string; isActive?: boolean }): Promise<WorkoutExercise> => {
     const response = await api.put(`/workouts/exercises/${id}`, data);
     return response.data;
   },

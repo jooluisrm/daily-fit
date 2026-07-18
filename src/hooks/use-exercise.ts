@@ -20,7 +20,7 @@ export const useAddExerciseToWorkout = (workoutId: string) => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (data: { name: string; image?: string; sets: number; reps: string }) => 
+    mutationFn: (data: { name: string; image?: string; sets: number; reps: string; weightType?: string }) => 
       ExerciseAPI.addExerciseToWorkout(workoutId, data),
     onSuccess: () => {
       // Atualiza o cache da lista de exercícios desse treino
@@ -46,7 +46,7 @@ export const useUpdateWorkoutExercise = (workoutId: string) => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ workoutExerciseId, data }: { workoutExerciseId: string, data: { name?: string; imageUrl?: string; sets?: number; reps?: string; isActive?: boolean } }) => 
+    mutationFn: ({ workoutExerciseId, data }: { workoutExerciseId: string, data: { name?: string; imageUrl?: string; sets?: number; reps?: string; weightType?: string; isActive?: boolean } }) => 
       ExerciseAPI.updateWorkoutExercise(workoutExerciseId, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['workout-exercises', workoutId] });

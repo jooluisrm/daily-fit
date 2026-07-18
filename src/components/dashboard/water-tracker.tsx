@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label"
 import { Droplet, Settings, Plus, CheckCircle2, Sparkles, Clock } from "lucide-react"
 import { useWaterData, useAddWater, useUpdateWaterSettings } from "@/src/hooks/use-water"
 import { toast } from "sonner"
+import { motion, AnimatePresence } from "framer-motion"
 
 export function WaterTrackerCard() {
   const { data, isLoading } = useWaterData()
@@ -83,8 +84,9 @@ export function WaterTrackerCard() {
 
   return (
     <>
-      <Card className={`bg-zinc-900 h-full flex flex-col transition-colors duration-500 ${isCompleted ? 'border-emerald-500/50' : 'border-zinc-800'}`}>
-        <CardHeader className="pb-2 flex flex-row items-start justify-between">
+      <Card className={`relative overflow-hidden bg-gradient-to-br from-zinc-900/90 to-zinc-950 flex flex-col h-full transition-all group hover:border-zinc-700/50 hover:scale-[1.02] shadow-sm ${isCompleted ? 'border-emerald-500/30 shadow-[0_0_20px_rgba(16,185,129,0.05)]' : 'border-zinc-800/50'}`}>
+        <div className="absolute -right-12 -top-12 w-32 h-32 bg-blue-500/5 rounded-full blur-3xl group-hover:bg-blue-500/10 transition-colors pointer-events-none" />
+        <CardHeader className="pb-2 flex flex-row items-start justify-between relative z-10">
           <CardTitle className="text-base font-semibold text-white flex items-center gap-2">
             <Droplet className={`w-4 h-4 ${isCompleted ? 'text-emerald-500' : 'text-blue-400'}`} />
             Hidratação
@@ -96,19 +98,57 @@ export function WaterTrackerCard() {
         </CardHeader>
         <CardContent className="pt-2 flex-1 flex flex-col justify-between">
           <div className="flex flex-col items-center justify-center py-4">
-            {/* Circular Progress */}
-            <div className="relative w-32 h-32 flex items-center justify-center rounded-full bg-zinc-800"
-              style={{
-                background: `conic-gradient(${isCompleted ? '#10b981' : '#60a5fa'} ${percentage}%, #27272a ${percentage}%)`
-              }}
-            >
-              <div className="absolute inset-1 bg-zinc-900 rounded-full flex flex-col items-center justify-center">
-                {isCompleted ? (
-                  <CheckCircle2 className="w-10 h-10 text-emerald-500 mb-1" />
-                ) : (
-                  <span className="text-2xl font-bold text-white">{total}</span>
-                )}
-                <span className={`text-xs ${isCompleted ? 'text-emerald-500/70 font-medium' : 'text-zinc-400'}`}>{isCompleted ? 'Sucesso!' : `/ ${goal} ml`}</span>
+            {/* SVG Circular Progress with Framer Motion */}
+            <div className="relative w-36 h-36 flex items-center justify-center">
+              <svg className="w-full h-full -rotate-90 transform drop-shadow-md" viewBox="0 0 100 100">
+                <circle cx="50" cy="50" r="42" stroke="#27272a" strokeWidth="8" fill="transparent" />
+                <motion.circle 
+                  cx="50" cy="50" r="42" 
+                  stroke={isCompleted ? '#10b981' : '#3b82f6'} 
+                  strokeWidth="8" 
+                  fill="transparent" 
+                  strokeDasharray="264"
+                  initial={{ strokeDashoffset: 264 }}
+                  animate={{ strokeDashoffset: 264 - (264 * percentage) / 100 }}
+                  transition={{ type: 'spring', bounce: 0.1, duration: 1.2 }}
+                  strokeLinecap="round"
+                  className="drop-shadow-[0_0_8px_rgba(59,130,246,0.3)]"
+                />
+              </svg>
+              <div className="absolute inset-0 flex flex-col items-center justify-center">
+                <AnimatePresence mode="wait">
+                  {isCompleted ? (
+                    <motion.div 
+                      key="completed"
+                      initial={{ scale: 0, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      exit={{ scale: 0, opacity: 0 }}
+                      transition={{ type: 'spring', bounce: 0.5 }}
+                      className="flex flex-col items-center"
+                    >
+                      <CheckCircle2 className="w-10 h-10 text-emerald-500 mb-1" />
+                    </motion.div>
+                  ) : (
+                    <motion.div 
+                      key="progress"
+                      initial={{ scale: 0, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      exit={{ scale: 0, opacity: 0 }}
+                      className="flex flex-col items-center"
+                    >
+                      <motion.span 
+                        className="text-3xl font-bold text-white tracking-tight"
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                      >
+                        {total}
+                      </motion.span>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+                <span className={`text-xs mt-1 ${isCompleted ? 'text-emerald-500/70 font-medium' : 'text-zinc-400'}`}>
+                  {isCompleted ? 'Sucesso!' : `/ ${goal} ml`}
+                </span>
               </div>
             </div>
             
@@ -132,18 +172,19 @@ export function WaterTrackerCard() {
             )}
           </div>
 
-          <div className="grid grid-cols-2 gap-2 mt-4">
+          <div className="grid grid-cols-2 gap-3 mt-4">
             {quickAdds.slice(0, 2).map((amount, i) => (
-              <Button
-                key={i}
-                variant="outline"
-                className={`h-12 ${isCompleted ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 hover:text-emerald-300' : 'border-blue-500/30 bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 hover:text-blue-300'}`}
-                onClick={() => handleAddWater(amount)}
-                disabled={isAdding}
-              >
-                <Plus className="w-4 h-4 mr-1" />
-                {amount}ml
-              </Button>
+              <motion.div key={i} whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.95 }}>
+                <Button
+                  variant="outline"
+                  className={`w-full h-14 text-base font-medium transition-all shadow-sm ${isCompleted ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 hover:text-emerald-300' : 'border-blue-500/30 bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 hover:text-blue-300 hover:shadow-[0_0_15px_rgba(59,130,246,0.2)]'}`}
+                  onClick={() => handleAddWater(amount)}
+                  disabled={isAdding}
+                >
+                  <Plus className="w-5 h-5 mr-1" />
+                  {amount}ml
+                </Button>
+              </motion.div>
             ))}
           </div>
         </CardContent>

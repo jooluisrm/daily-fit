@@ -46,7 +46,7 @@ export class ExerciseService {
   static async addExerciseToWorkout(
     workoutId: string,
     userId: string,
-    data: { name: string; imageUrl?: string; sets: number; reps: string }
+    data: { name: string; imageUrl?: string; sets: number; reps: string; weightType?: string }
   ) {
     // Verificar se o treino existe e pertence ao user
     const workout = await prisma.workout.findUnique({
@@ -90,6 +90,7 @@ export class ExerciseService {
         exerciseId: exercise.id,
         sets: data.sets,
         reps: data.reps,
+        weightType: data.weightType || "TOTAL",
         order: nextOrder
       },
       include: {
@@ -114,6 +115,8 @@ export class ExerciseService {
     if (!workoutExercise || workoutExercise.workout.userId !== userId) {
       throw new Error('Exercício não encontrado ou não autorizado.');
     }
+
+    const finalWeight = workoutExercise.weightType === 'PER_SIDE' ? data.weight * 2 : data.weight;
 
     const startOfDay = new Date();
     startOfDay.setHours(0, 0, 0, 0);
@@ -150,7 +153,7 @@ export class ExerciseService {
       const updatedLog = await prisma.exerciseLog.update({
         where: { id: existingLog.id },
         data: {
-          weight: data.weight,
+          weight: finalWeight,
           repsDone: data.repsDone,
           workoutLogId
         }
@@ -162,7 +165,7 @@ export class ExerciseService {
       data: {
         workoutExerciseId,
         setNumber: data.setNumber,
-        weight: data.weight,
+        weight: finalWeight,
         repsDone: data.repsDone,
         workoutLogId
       }
@@ -177,7 +180,7 @@ export class ExerciseService {
   static async updateWorkoutExercise(
     workoutExerciseId: string,
     userId: string,
-    data: { name?: string; imageUrl?: string; sets?: number; reps?: string; isActive?: boolean }
+    data: { name?: string; imageUrl?: string; sets?: number; reps?: string; weightType?: string; isActive?: boolean }
   ) {
     // Garantir que a pessoa é dona desse treino
     const workoutExercise = await prisma.workoutExercise.findUnique({
@@ -218,6 +221,7 @@ export class ExerciseService {
     const updateData: any = { exerciseId: currentExerciseId };
     if (data.sets !== undefined) updateData.sets = data.sets;
     if (data.reps !== undefined) updateData.reps = data.reps;
+    if (data.weightType !== undefined) updateData.weightType = data.weightType;
     if (data.isActive !== undefined) updateData.isActive = data.isActive;
 
     const updatedWorkoutExercise = await prisma.workoutExercise.update({

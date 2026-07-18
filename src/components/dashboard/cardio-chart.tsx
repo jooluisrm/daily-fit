@@ -54,7 +54,8 @@ export function CardioChart() {
   const totalMinutosGerais = logs ? logs.reduce((acc, log) => acc + log.duration, 0) : 0
 
   return (
-    <Card className="bg-zinc-900 border-zinc-800 h-full flex flex-col">
+    <Card className="bg-gradient-to-br from-zinc-900/90 to-zinc-950 border-zinc-800/50 h-full flex flex-col relative overflow-hidden group hover:border-zinc-700/50 transition-all shadow-sm">
+      <div className="absolute -left-12 -top-12 w-40 h-40 bg-orange-500/5 rounded-full blur-3xl group-hover:bg-orange-500/10 transition-colors pointer-events-none" />
       <CardHeader className="pb-2">
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
           <div>

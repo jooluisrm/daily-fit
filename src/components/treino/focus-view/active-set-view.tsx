@@ -23,6 +23,7 @@ interface ActiveSetViewProps {
   handleSave: () => void
   isSaving: boolean
   goToPendingSet: () => void
+  isPerSide: boolean
 }
 
 export function ActiveSetView({
@@ -43,7 +44,8 @@ export function ActiveSetView({
   hasUnsavedChanges,
   handleSave,
   isSaving,
-  goToPendingSet
+  goToPendingSet,
+  isPerSide
 }: ActiveSetViewProps) {
   return (
     <div className="flex flex-col items-center animate-in zoom-in-95 duration-300">
@@ -52,8 +54,16 @@ export function ActiveSetView({
       </div>
       <div className="flex gap-4 sm:gap-6 w-full max-w-sm">
         <div className="flex-1 space-y-2">
-          <Label className="text-zinc-400 text-center block text-sm uppercase tracking-wider">Carga (kg)</Label>
-          <div className={cn("flex items-center bg-zinc-900/40 rounded-2xl border border-zinc-800 p-1 transition-colors", isHistoryMode ? "focus-within:border-amber-500/50" : "focus-within:border-primary/50", hasUncompletedPreviousSets && "opacity-50 grayscale pointer-events-none")}>
+          <Label className={cn("text-center block text-sm uppercase tracking-wider", isPerSide ? "text-primary" : "text-zinc-400")}>
+            {isPerSide ? "Carga (Cada Lado)" : "Carga (kg)"}
+          </Label>
+          <div className={cn(
+            "flex items-center rounded-2xl p-1 transition-colors border",
+            isPerSide ? "bg-primary/5 border-primary/30 focus-within:border-primary/60 shadow-[0_0_15px_rgba(var(--primary),0.1)]" : "bg-zinc-900/40 border-zinc-800",
+            !isPerSide && isHistoryMode ? "focus-within:border-amber-500/50" : "",
+            !isPerSide && !isHistoryMode ? "focus-within:border-primary/50" : "",
+            hasUncompletedPreviousSets && "opacity-50 grayscale pointer-events-none"
+          )}>
             <Button
               variant="ghost"
               size="icon"
@@ -126,13 +136,13 @@ export function ActiveSetView({
         {historyLog && (
           <button
             onClick={() => {
-              setWeightInput(String(historyLog.weight))
+              setWeightInput(String(isPerSide ? historyLog.weight / 2 : historyLog.weight))
               setRepsInput(String(historyLog.repsDone))
             }}
             className="text-sm text-zinc-400 hover:text-zinc-200 bg-zinc-900/50 hover:bg-zinc-800 px-4 py-2 rounded-lg border border-zinc-800/50 transition-colors flex items-center gap-2 group"
           >
             <History className="w-4 h-4 opacity-70 group-hover:opacity-100 transition-opacity" />
-            Último: <strong className="text-zinc-300">{historyLog.weight}kg x {historyLog.repsDone}</strong>
+            Último: <strong className="text-zinc-300">{isPerSide ? historyLog.weight / 2 : historyLog.weight}kg x {historyLog.repsDone}</strong>
           </button>
         )}
 
