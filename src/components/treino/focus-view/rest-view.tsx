@@ -11,6 +11,7 @@ interface RestViewProps {
   historyLog: any | null
   handleRestFinished: () => void
   autoAdvanceTimeLeft: number
+  isPerSide: boolean
 }
 
 export function RestView({
@@ -20,7 +21,8 @@ export function RestView({
   isHistoryMode,
   historyLog,
   handleRestFinished,
-  autoAdvanceTimeLeft
+  autoAdvanceTimeLeft,
+  isPerSide
 }: RestViewProps) {
   return (
     <div className="flex flex-col items-center animate-in zoom-in-95 duration-300">
@@ -74,10 +76,15 @@ export function RestView({
               <History className="w-4 h-4" />
               <span className="text-xs uppercase tracking-widest font-bold">Treino Passado</span>
             </div>
-            <div className="text-2xl font-black text-white">
-              {historyLog.weight}<span className="text-lg text-zinc-500 font-bold mx-1">kg</span> 
-              <span className="text-zinc-600 mx-2">×</span> 
-              {historyLog.repsDone}<span className="text-lg text-zinc-500 font-bold mx-1">reps</span>
+            <div className="flex flex-col items-center">
+              <div className="text-2xl font-black text-white flex items-center">
+                {isPerSide ? historyLog.weight / 2 : historyLog.weight}
+                <span className="text-lg text-zinc-500 font-bold mx-1">kg</span> 
+                <span className="text-zinc-600 mx-2">×</span> 
+                {historyLog.repsDone}
+                <span className="text-lg text-zinc-500 font-bold mx-1">reps</span>
+              </div>
+              {isPerSide && <span className="text-[10px] text-zinc-500 font-sans uppercase tracking-widest bg-zinc-900/50 px-2 py-0.5 rounded border border-zinc-800/50 mt-1">cada lado</span>}
             </div>
           </div>
         ) : (

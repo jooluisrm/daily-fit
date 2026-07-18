@@ -221,8 +221,10 @@ export function TreinoFocusView({ workoutId, exercises, onFinishAll, onClose }: 
       return l.setNumber === currentSet && logDate === todayStr
     })
 
+    const isPerSide = currentExercise.weightType === 'PER_SIDE'
+
     if (todayLog) {
-      setWeightInput(String(todayLog.weight))
+      setWeightInput(String(isPerSide ? todayLog.weight / 2 : todayLog.weight))
       setRepsInput(String(todayLog.repsDone))
       return
     }
@@ -234,7 +236,7 @@ export function TreinoFocusView({ workoutId, exercises, onFinishAll, onClose }: 
       })
 
       if (prevSetTodayLog) {
-        setWeightInput(String(prevSetTodayLog.weight))
+        setWeightInput(String(isPerSide ? prevSetTodayLog.weight / 2 : prevSetTodayLog.weight))
         setRepsInput(String(prevSetTodayLog.repsDone))
         return
       }
@@ -244,7 +246,7 @@ export function TreinoFocusView({ workoutId, exercises, onFinishAll, onClose }: 
     const sortedSetLogs = [...setLogs].sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime())
 
     if (sortedSetLogs.length > 0) {
-      setWeightInput(String(sortedSetLogs[0].weight))
+      setWeightInput(String(isPerSide ? sortedSetLogs[0].weight / 2 : sortedSetLogs[0].weight))
       setRepsInput(String(sortedSetLogs[0].repsDone))
     } else {
       setWeightInput("")
@@ -616,6 +618,7 @@ export function TreinoFocusView({ workoutId, exercises, onFinishAll, onClose }: 
                                       handleSave={handleSave}
                                       isSaving={isSaving}
                                       goToPendingSet={goToPendingSet}
+                                      isPerSide={currentExercise.weightType === 'PER_SIDE'}
                                     />
                                   ) : (
                                     <RestView
@@ -626,6 +629,7 @@ export function TreinoFocusView({ workoutId, exercises, onFinishAll, onClose }: 
                                       historyLog={historyLog}
                                       handleRestFinished={handleRestFinished}
                                       autoAdvanceTimeLeft={autoAdvanceTimeLeft}
+                                      isPerSide={currentExercise.weightType === 'PER_SIDE'}
                                     />
                                   )}
                                 </motion.div>
@@ -699,6 +703,7 @@ export function TreinoFocusView({ workoutId, exercises, onFinishAll, onClose }: 
         onOpenChange={setIsHistoryModalOpen}
         exerciseName={currentExercise?.exercise?.name}
         fullHistory={fullHistory}
+        isPerSide={currentExercise?.weightType === 'PER_SIDE'}
       />
 
       <TreinoSummaryDialog

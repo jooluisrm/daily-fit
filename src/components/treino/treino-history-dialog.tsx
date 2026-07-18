@@ -10,9 +10,10 @@ interface TreinoHistoryDialogProps {
     date: string
     logs: any[]
   }[]
+  isPerSide?: boolean
 }
 
-export function TreinoHistoryDialog({ isOpen, onOpenChange, exerciseName, fullHistory }: TreinoHistoryDialogProps) {
+export function TreinoHistoryDialog({ isOpen, onOpenChange, exerciseName, fullHistory, isPerSide }: TreinoHistoryDialogProps) {
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="bg-zinc-950 border-zinc-800 text-white rounded-3xl p-6 shadow-2xl max-w-md w-[95%] max-h-[80vh] flex flex-col">
@@ -40,10 +41,15 @@ export function TreinoHistoryDialog({ isOpen, onOpenChange, exerciseName, fullHi
                   {group.logs.map((log: any) => (
                     <div key={log.id} className="flex items-center justify-between bg-zinc-900/60 p-3.5 rounded-2xl border border-zinc-800/80">
                       <span className="text-zinc-400 font-medium text-sm">Série {log.setNumber}</span>
-                      <div className="flex items-center gap-3">
-                        <span className="font-mono font-bold text-zinc-200 text-base">{log.weight}kg</span>
-                        <span className="text-zinc-600 text-sm">x</span>
-                        <span className="font-mono font-bold text-zinc-200 text-base">{log.repsDone} reps</span>
+                      <div className="flex items-center gap-2">
+                        <div className="flex flex-col items-end">
+                          <span className="font-mono font-bold text-zinc-200 text-base leading-none">
+                            {isPerSide ? log.weight / 2 : log.weight}kg
+                          </span>
+                          {isPerSide && <span className="text-[9px] text-zinc-500 font-sans uppercase tracking-wider mt-0.5">cada lado</span>}
+                        </div>
+                        <span className="text-zinc-600 text-sm mx-1">x</span>
+                        <span className="font-mono font-bold text-zinc-200 text-base leading-none">{log.repsDone} reps</span>
                       </div>
                     </div>
                   ))}

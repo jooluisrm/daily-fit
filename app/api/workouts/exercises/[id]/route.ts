@@ -18,6 +18,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       imageUrl: data.imageUrl,
       sets: data.sets ? Number(data.sets) : undefined,
       reps: data.reps,
+      weightType: data.weightType,
       isActive: data.isActive
     });
 

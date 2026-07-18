@@ -41,11 +41,11 @@ export default function WorkoutDetailsPage() {
   const [exerciseEditModal, setExerciseEditModal] = useState<{
     isOpen: boolean;
     workoutExerciseId: string | null;
-    form: { name: string; imageUrl: string; sets: string; reps: string };
+    form: { name: string; imageUrl: string; sets: string; reps: string; weightType: string };
   }>({
     isOpen: false,
     workoutExerciseId: null,
-    form: { name: "", imageUrl: "", sets: "", reps: "" }
+    form: { name: "", imageUrl: "", sets: "", reps: "", weightType: "TOTAL" }
   })
   const { mutateAsync: updateWorkout, isPending: isUpdating } = useUpdateWorkout(workoutId)
   const { mutateAsync: deleteWorkout, isPending: isDeletingWorkout } = useDeleteWorkout(workoutId)
@@ -61,7 +61,8 @@ export default function WorkoutDetailsPage() {
     name: "", 
     image: "", 
     sets: "", 
-    reps: "" 
+    reps: "",
+    weightType: "TOTAL"
   })
 
   // Preenchemos os defaults quando o user carregar se o form ainda estiver vazio
@@ -153,7 +154,8 @@ export default function WorkoutDetailsPage() {
         name: formData.name,
         image: formData.image,
         sets: Number(formData.sets),
-        reps: formData.reps
+        reps: formData.reps,
+        weightType: formData.weightType
       })
       toast.success("Exercício adicionado!")
       setIsOpen(false)
@@ -161,7 +163,8 @@ export default function WorkoutDetailsPage() {
         name: "", 
         image: "", 
         sets: user?.defaultSets ? String(user.defaultSets) : "4", 
-        reps: user?.defaultReps || "10-12" 
+        reps: user?.defaultReps || "10-12",
+        weightType: "TOTAL"
       })
     } catch (error: any) {
       toast.error(error?.response?.data?.error || "Erro ao adicionar.")
@@ -246,7 +249,8 @@ export default function WorkoutDetailsPage() {
         name: item.exercise.name,
         imageUrl: item.exercise.imageUrl || "",
         sets: String(item.sets),
-        reps: item.reps
+        reps: item.reps,
+        weightType: item.weightType || "TOTAL"
       }
     })
   }
@@ -263,7 +267,7 @@ export default function WorkoutDetailsPage() {
     try {
       await updateExercise({
         workoutExerciseId: exerciseEditModal.workoutExerciseId,
-        data: { name, imageUrl, sets: Number(sets), reps }
+        data: { name, imageUrl, sets: Number(sets), reps, weightType: exerciseEditModal.form.weightType }
       })
       toast.success("Exercício atualizado!")
       setExerciseEditModal(prev => ({ ...prev, isOpen: false }))
@@ -523,6 +527,18 @@ export default function WorkoutDetailsPage() {
                 />
               </div>
 
+              <div className="space-y-2">
+                <Label className="text-zinc-300">Tipo de Peso *</Label>
+                <select 
+                  value={formData.weightType} 
+                  onChange={e => setFormData(p => ({ ...p, weightType: e.target.value || "TOTAL" }))}
+                  className="flex h-11 w-full items-center justify-between rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary appearance-none"
+                >
+                  <option value="TOTAL" className="bg-zinc-950 text-white py-2">Peso Total</option>
+                  <option value="PER_SIDE" className="bg-zinc-950 text-white py-2">Peso por Lado (Halteres, Polia dupla)</option>
+                </select>
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="sets" className="text-zinc-300">Séries *</Label>
@@ -706,6 +722,17 @@ export default function WorkoutDetailsPage() {
                 placeholder="Ex: Supino Reto"
                 className="bg-zinc-900 border-zinc-800 text-white focus-visible:ring-primary h-11"
               />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-zinc-300">Tipo de Peso *</Label>
+              <select 
+                value={exerciseEditModal.form.weightType} 
+                onChange={e => setExerciseEditModal(p => ({ ...p, form: { ...p.form, weightType: e.target.value || "TOTAL" } }))}
+                className="flex h-11 w-full items-center justify-between rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary appearance-none"
+              >
+                <option value="TOTAL" className="bg-zinc-950 text-white py-2">Peso Total</option>
+                <option value="PER_SIDE" className="bg-zinc-950 text-white py-2">Peso por Lado (Halteres, Polia dupla)</option>
+              </select>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">

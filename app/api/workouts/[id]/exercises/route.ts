@@ -42,7 +42,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       name: data.name,
       imageUrl: data.image || null, // No front a gente manda image, mas no back chamamos imageUrl
       sets: Number(data.sets),
-      reps: data.reps
+      reps: data.reps,
+      weightType: data.weightType || "TOTAL"
     });
 
     return NextResponse.json(workoutExercise, { status: 201 });

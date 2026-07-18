@@ -464,8 +464,14 @@ export function TreinoToday() {
     const todayVolume = todayLogs.reduce((acc: number, log: any) => acc + (log.weight * log.repsDone), 0)
     const previousVolume = previousLogs.reduce((acc: number, log: any) => acc + (log.weight * log.repsDone), 0)
     
-    const todayMaxWeight = todayLogs.length > 0 ? Math.max(...todayLogs.map((l: any) => l.weight)) : 0
-    const previousMaxWeight = previousLogs.length > 0 ? Math.max(...previousLogs.map((l: any) => l.weight)) : 0
+    let todayMaxWeight = todayLogs.length > 0 ? Math.max(...todayLogs.map((l: any) => l.weight)) : 0
+    let previousMaxWeight = previousLogs.length > 0 ? Math.max(...previousLogs.map((l: any) => l.weight)) : 0
+    const isPerSide = ex.weightType === 'PER_SIDE'
+
+    if (isPerSide) {
+      todayMaxWeight = todayMaxWeight / 2
+      previousMaxWeight = previousMaxWeight / 2
+    }
 
     return {
       ...ex,
@@ -476,6 +482,7 @@ export function TreinoToday() {
       previousVolume,
       todayMaxWeight,
       previousMaxWeight,
+      isPerSide,
       hasPreviousHistory: previousLogs.length > 0
     }
   }) || []
@@ -580,23 +587,29 @@ export function TreinoToday() {
           
           {/* QUICK STATS */}
           <div className="relative z-10 border-t border-zinc-800/80 bg-black/40 p-6 sm:p-8">
-            <div className="grid grid-cols-3 gap-4 sm:gap-8 max-w-2xl mx-auto">
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-8 sm:gap-12 max-w-2xl mx-auto">
               <div className="flex flex-col items-center">
-                <span className="text-4xl sm:text-6xl font-black text-white mb-1 drop-shadow-md">{doneExercises.length}</span>
-                <span className="text-[10px] sm:text-sm font-bold text-zinc-500 uppercase tracking-widest text-center">Exercícios</span>
+                <span className="text-5xl sm:text-6xl font-black text-white mb-1 drop-shadow-md">{doneExercises.length}</span>
+                <span className="text-xs sm:text-sm font-bold text-zinc-500 uppercase tracking-widest text-center">Exercícios</span>
               </div>
+              
+              <div className="w-16 h-px sm:w-px sm:h-16 bg-zinc-800/80"></div>
+              
               <div className="flex flex-col items-center">
-                <span className="text-4xl sm:text-6xl font-black text-white mb-1 drop-shadow-md">{workoutDurationMins > 0 ? `${workoutDurationMins}m` : '-'}</span>
-                <span className="text-[10px] sm:text-sm font-bold text-zinc-500 uppercase tracking-widest text-center">Tempo</span>
+                <span className="text-5xl sm:text-6xl font-black text-white mb-1 drop-shadow-md">{workoutDurationMins > 0 ? `${workoutDurationMins}m` : '-'}</span>
+                <span className="text-xs sm:text-sm font-bold text-zinc-500 uppercase tracking-widest text-center">Tempo</span>
               </div>
+              
+              <div className="w-16 h-px sm:w-px sm:h-16 bg-zinc-800/80"></div>
+              
               <div className="flex flex-col items-center">
                 <div className="flex items-start gap-1">
-                  <span className="text-4xl sm:text-6xl font-black text-white mb-1 drop-shadow-md">{totalTodayVolume}</span>
+                  <span className="text-5xl sm:text-6xl font-black text-white mb-1 drop-shadow-md">{totalTodayVolume}</span>
                 </div>
                 <div className="flex items-center gap-1 mt-1">
-                  <span className="text-[10px] sm:text-sm font-bold text-zinc-500 uppercase tracking-widest text-center">Volume</span>
-                  {totalVolumeStatus === 'up' && <ArrowUp className="w-3 h-3 sm:w-4 sm:h-4 text-emerald-500" />}
-                  {totalVolumeStatus === 'down' && <ArrowDown className="w-3 h-3 sm:w-4 sm:h-4 text-red-500" />}
+                  <span className="text-xs sm:text-sm font-bold text-zinc-500 uppercase tracking-widest text-center">Volume</span>
+                  {totalVolumeStatus === 'up' && <ArrowUp className="w-4 h-4 text-emerald-500" />}
+                  {totalVolumeStatus === 'down' && <ArrowDown className="w-4 h-4 text-red-500" />}
                 </div>
               </div>
             </div>
@@ -685,7 +698,7 @@ export function TreinoToday() {
                     <div className="grid grid-cols-2 gap-3">
                       {/* Carga Máxima */}
                       <div className="flex flex-col gap-1 bg-black/40 rounded-xl p-3 border border-white/5">
-                        <span className="text-[10px] text-zinc-500 uppercase font-bold tracking-wider">Carga Máxima</span>
+                        <span className="text-[10px] text-zinc-500 uppercase font-bold tracking-wider">Carga Máxima {ex.isPerSide ? "(Cada Lado)" : ""}</span>
                         <div className="flex items-center justify-between mt-1">
                           <span className="text-xl font-bold text-white">{ex.todayMaxWeight}kg</span>
                           {weightStatus === 'new' && <span className="bg-yellow-500/20 text-yellow-500 text-[10px] font-bold px-2 py-1 rounded-full flex items-center"><Star className="w-3 h-3 mr-1" />NOVO</span>}
