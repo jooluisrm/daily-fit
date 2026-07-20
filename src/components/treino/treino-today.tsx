@@ -9,6 +9,8 @@ import { ExerciseCard } from "@/src/components/treino/exercise-card"
 import { useWorkouts } from "@/src/hooks/use-workout"
 import { useWorkoutExercises } from "@/src/hooks/use-exercise"
 import { useTodayCardio, useLogCardio } from "@/src/hooks/use-cardio"
+import { useCardioTimerStore } from "@/src/store/use-cardio-timer-store"
+import { useTimerStore } from "@/src/store/use-timer-store"
 import { useTodayWorkoutStatus, useStartWorkout, useUpdateWorkoutStatus, useTodayAllWorkoutLogs } from "@/src/hooks/use-workout-log"
 
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
@@ -35,11 +37,11 @@ export function TreinoToday() {
   const [cardioTime, setCardioTime] = useState<string>("")
   const [swappedWorkoutId, setSwappedWorkoutId] = useState<string | null>(null)
   const [selectedCompletedTabId, setSelectedCompletedTabId] = useState<string | null>(null)
-  
+
   // Timer State
   const [showRestTimer, setShowRestTimer] = useState(false)
   const [restTimerKey, setRestTimerKey] = useState(0)
-  
+
   // Local state for transitions
   const [showCardioPrompt, setShowCardioPrompt] = useState(false)
   const [viewMode, setViewMode] = useState<'list' | 'focus'>('focus')
@@ -49,7 +51,7 @@ export function TreinoToday() {
   const todayIndex = new Date().getDay()
   const defaultTodayWorkout = workouts?.find(w => w.isActive && w.daysOfWeek.includes(todayIndex))
   const { data: allTodayLogs, isLoading: isLoadingAllLogs } = useTodayAllWorkoutLogs()
-  
+
   const inProgressLog = allTodayLogs?.find(l => l.status === 'IN_PROGRESS' || l.status === 'CARDIO')
   const completedLogs = allTodayLogs?.filter(l => l.status === 'COMPLETED') || []
 
@@ -57,14 +59,14 @@ export function TreinoToday() {
   // Senão, respeitar o swap.
   // Senão, respeitar o treino agendado pro dia.
   // Senão (em dias de descanso), se tiver concluído algum treino hoje, mostrar ele.
-  const effectiveWorkoutId = inProgressLog 
-    ? inProgressLog.workoutId 
+  const effectiveWorkoutId = inProgressLog
+    ? inProgressLog.workoutId
     : (swappedWorkoutId || defaultTodayWorkout?.id || (completedLogs && completedLogs.length > 0 ? completedLogs[completedLogs.length - 1].workoutId : undefined))
 
   const todayWorkout = workouts?.find(w => w.id === effectiveWorkoutId)
 
   const { data: exercises, isLoading: isLoadingExercises } = useWorkoutExercises(todayWorkout?.id || "")
-  
+
   const { data: todayCardio } = useTodayCardio()
   const { mutateAsync: logCardio, isPending: isSavingCardio } = useLogCardio()
 
@@ -74,12 +76,19 @@ export function TreinoToday() {
 
   const currentState = workoutStatus?.status
 
+  const { startCardioTimer, isCardioActive } = useCardioTimerStore()
+
   useEffect(() => {
     if (todayCardio) {
-      setCardioIntensity(todayCardio.intensity)
+      setCardioIntensity(todayCardio.intensity || 'moderado')
       setCardioTime(String(todayCardio.duration))
+
+      if (todayCardio.status === 'IN_PROGRESS' && todayCardio.startTime && !isCardioActive) {
+        const existingStartTime = new Date(todayCardio.startTime).getTime()
+        startCardioTimer(todayCardio.targetDuration ? todayCardio.targetDuration * 60 : 0, todayCardio.type || 'Esteira', existingStartTime)
+      }
     }
-  }, [todayCardio])
+  }, [todayCardio, isCardioActive, startCardioTimer])
 
   useEffect(() => {
     const swapData = localStorage.getItem('daily-fit-swap')
@@ -91,13 +100,29 @@ export function TreinoToday() {
         if (date === todayStr) {
           setSwappedWorkoutId(workoutId)
         }
-      } catch (e) {}
+      } catch (e) { }
     }
     const savedViewMode = localStorage.getItem('daily-fit-view-mode')
     if (savedViewMode === 'list' || savedViewMode === 'focus') {
       setViewMode(savedViewMode)
     }
+
+    const handleViewModeChange = () => {
+      const mode = localStorage.getItem('daily-fit-view-mode')
+      if (mode === 'list' || mode === 'focus') {
+        setViewMode(mode)
+      }
+    }
+    window.addEventListener('view-mode-changed', handleViewModeChange)
+    return () => window.removeEventListener('view-mode-changed', handleViewModeChange)
   }, [])
+
+  useEffect(() => {
+    if (currentState === 'COMPLETED') {
+      useCardioTimerStore.getState().stopCardioTimer()
+      useTimerStore.getState().stopTimer()
+    }
+  }, [currentState])
 
   const handleSwap = (workoutId: string) => {
     setSwappedWorkoutId(workoutId)
@@ -126,8 +151,16 @@ export function TreinoToday() {
     setShowRestTimer(true)
   }
 
-  const handleFinishMuscleTraining = () => {
-    setShowCardioPrompt(true)
+  const handleFinishMuscleTraining = async () => {
+    if (todayCardio) {
+      try {
+        await updateStatus({ status: 'COMPLETED', hasCardio: true })
+      } catch (error) {
+        console.error("Erro ao atualizar status.", error)
+      }
+    } else {
+      setShowCardioPrompt(true)
+    }
   }
 
   const handleCardioDecision = async (wantsCardio: boolean) => {
@@ -163,7 +196,7 @@ export function TreinoToday() {
 
   const handleUndoFinish = async () => {
     try {
-      await updateStatus({ status: 'IN_PROGRESS', hasCardio: false })
+      await updateStatus({ status: 'IN_PROGRESS', hasCardio: !!todayCardio })
     } catch (error) {
       console.error("Erro ao desfazer finalização.", error)
     }
@@ -186,23 +219,23 @@ export function TreinoToday() {
     return (
       <div className="bg-zinc-900 border border-zinc-800 border-dashed rounded-xl p-12 text-center flex flex-col items-center justify-center relative">
         {workouts && workouts.length > 0 && (
-           <div className="absolute top-4 right-4 sm:top-6 sm:right-6">
-             <DropdownMenu>
-               <DropdownMenuTrigger render={
-                 <Button variant="outline" size="sm" className="bg-transparent border-zinc-800 text-zinc-400 hover:text-white">
-                   <ArrowLeftRight className="w-4 h-4 mr-2" />
-                   Fazer um treino extra
-                 </Button>
-               } />
-               <DropdownMenuContent align="end" className="w-56 bg-zinc-950 border-zinc-800 text-zinc-200">
-                 {workouts.filter(w => w.isActive).map(w => (
-                    <DropdownMenuItem key={w.id} onClick={() => handleSwap(w.id)} className="cursor-pointer hover:bg-zinc-900">
-                      <Dumbbell className="w-4 h-4 mr-2" /> {w.name}
-                    </DropdownMenuItem>
-                  ))}
-               </DropdownMenuContent>
-             </DropdownMenu>
-           </div>
+          <div className="absolute top-4 right-4 sm:top-6 sm:right-6">
+            <DropdownMenu>
+              <DropdownMenuTrigger render={
+                <Button variant="outline" size="sm" className="bg-transparent border-zinc-800 text-zinc-400 hover:text-white">
+                  <ArrowLeftRight className="w-4 h-4 mr-2" />
+                  Fazer um treino extra
+                </Button>
+              } />
+              <DropdownMenuContent align="end" className="w-56 bg-zinc-950 border-zinc-800 text-zinc-200">
+                {workouts.filter(w => w.isActive).map(w => (
+                  <DropdownMenuItem key={w.id} onClick={() => handleSwap(w.id)} className="cursor-pointer hover:bg-zinc-900">
+                    <Dumbbell className="w-4 h-4 mr-2" /> {w.name}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         )}
         <div className="w-16 h-16 bg-zinc-800 rounded-full flex items-center justify-center text-zinc-500 mb-4">
           <CalendarDays className="w-8 h-8" />
@@ -224,28 +257,28 @@ export function TreinoToday() {
           <span>{DAYS_MAP[todayIndex]}</span>
         </div>
         {workouts && workouts.length > 0 && currentState !== 'COMPLETED' && currentState !== 'IN_PROGRESS' && currentState !== 'CARDIO' && (
-           <DropdownMenu>
-             <DropdownMenuTrigger render={
-               <Button variant="ghost" size="sm" className="h-8 text-zinc-400 hover:text-white" title="Trocar treino de hoje">
-                 <ArrowLeftRight className="w-4 h-4 mr-2" />
-                 Trocar Treino
-               </Button>
-             } />
-             <DropdownMenuContent align="end" className="w-64 bg-zinc-950 border-zinc-800 text-zinc-200">
-                <div className="px-2 py-1.5 text-sm font-semibold text-zinc-400">Escolha o treino p/ Hoje</div>
-                <div className="h-px bg-zinc-800 my-1" />
-                {swappedWorkoutId && defaultTodayWorkout && (
-                   <DropdownMenuItem onClick={handleRemoveSwap} className="cursor-pointer hover:bg-zinc-900 focus:bg-zinc-900 text-primary">
-                     <Undo2 className="w-4 h-4 mr-2" /> Voltar ao Original ({defaultTodayWorkout.name})
-                   </DropdownMenuItem>
-                )}
-                {workouts.filter(w => w.id !== todayWorkout?.id && w.isActive).map(w => (
-                  <DropdownMenuItem key={w.id} onClick={() => handleSwap(w.id)} className="cursor-pointer hover:bg-zinc-900 focus:bg-zinc-900">
-                    <Dumbbell className="w-4 h-4 mr-2" /> {w.name}
-                  </DropdownMenuItem>
-                ))}
-             </DropdownMenuContent>
-           </DropdownMenu>
+          <DropdownMenu>
+            <DropdownMenuTrigger render={
+              <Button variant="ghost" size="sm" className="h-8 text-zinc-400 hover:text-white" title="Trocar treino de hoje">
+                <ArrowLeftRight className="w-4 h-4 mr-2" />
+                Trocar Treino
+              </Button>
+            } />
+            <DropdownMenuContent align="end" className="w-64 bg-zinc-950 border-zinc-800 text-zinc-200">
+              <div className="px-2 py-1.5 text-sm font-semibold text-zinc-400">Escolha o treino p/ Hoje</div>
+              <div className="h-px bg-zinc-800 my-1" />
+              {swappedWorkoutId && defaultTodayWorkout && (
+                <DropdownMenuItem onClick={handleRemoveSwap} className="cursor-pointer hover:bg-zinc-900 focus:bg-zinc-900 text-primary">
+                  <Undo2 className="w-4 h-4 mr-2" /> Voltar ao Original ({defaultTodayWorkout.name})
+                </DropdownMenuItem>
+              )}
+              {workouts.filter(w => w.id !== todayWorkout?.id && w.isActive).map(w => (
+                <DropdownMenuItem key={w.id} onClick={() => handleSwap(w.id)} className="cursor-pointer hover:bg-zinc-900 focus:bg-zinc-900">
+                  <Dumbbell className="w-4 h-4 mr-2" /> {w.name}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
         )}
       </div>
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
@@ -263,8 +296,8 @@ export function TreinoToday() {
           <div className="flex flex-col sm:flex-row items-center gap-2 mt-4 md:mt-0">
             <AlertDialog>
               <AlertDialogTrigger render={
-                <Button 
-                  variant="outline" 
+                <Button
+                  variant="outline"
                   disabled={isUpdatingStatus}
                   className="bg-transparent border-zinc-800 text-zinc-400 hover:bg-zinc-800 hover:text-white w-full sm:w-auto"
                 >
@@ -287,24 +320,24 @@ export function TreinoToday() {
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
-            
-             <DropdownMenu>
-               <DropdownMenuTrigger render={
-                 <Button variant="outline" className="bg-primary/10 border-primary/20 text-primary hover:bg-primary/20 hover:text-primary w-full sm:w-auto">
-                   <Plus className="w-4 h-4 mr-2" />
-                   Iniciar Outro Treino
-                 </Button>
-               } />
-               <DropdownMenuContent align="end" className="w-64 bg-zinc-950 border-zinc-800 text-zinc-200">
-                  <div className="px-2 py-1.5 text-sm font-semibold text-zinc-400">Escolha um treino</div>
-                  <div className="h-px bg-zinc-800 my-1" />
-                  {workouts?.filter(w => w.isActive && !completedLogs?.find((l: any) => l.workoutId === w.id)).map(w => (
-                    <DropdownMenuItem key={w.id} onClick={() => handleSwap(w.id)} className="cursor-pointer hover:bg-zinc-900 focus:bg-zinc-900">
-                      <Dumbbell className="w-4 h-4 mr-2" /> {w.name}
-                    </DropdownMenuItem>
-                  ))}
-               </DropdownMenuContent>
-             </DropdownMenu>
+
+            <DropdownMenu>
+              <DropdownMenuTrigger render={
+                <Button variant="outline" className="bg-primary/10 border-primary/20 text-primary hover:bg-primary/20 hover:text-primary w-full sm:w-auto">
+                  <Plus className="w-4 h-4 mr-2" />
+                  Iniciar Outro Treino
+                </Button>
+              } />
+              <DropdownMenuContent align="end" className="w-64 bg-zinc-950 border-zinc-800 text-zinc-200">
+                <div className="px-2 py-1.5 text-sm font-semibold text-zinc-400">Escolha um treino</div>
+                <div className="h-px bg-zinc-800 my-1" />
+                {workouts?.filter(w => w.isActive && !completedLogs?.find((l: any) => l.workoutId === w.id)).map(w => (
+                  <DropdownMenuItem key={w.id} onClick={() => handleSwap(w.id)} className="cursor-pointer hover:bg-zinc-900 focus:bg-zinc-900">
+                    <Dumbbell className="w-4 h-4 mr-2" /> {w.name}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         )}
       </div>
@@ -321,10 +354,10 @@ export function TreinoToday() {
           <Dumbbell className="w-16 h-16 text-primary mb-6 relative z-10 animate-bounce" />
           <h2 className="text-3xl font-bold text-white mb-3 relative z-10">Pronto para treinar?</h2>
           <p className="text-zinc-400 mb-8 max-w-md relative z-10 text-lg">Inicie sua sessão para registrar suas cargas e gerenciar o tempo de descanso.</p>
-          <Button 
-            size="lg" 
-            onClick={handleStartWorkout} 
-            disabled={isStarting} 
+          <Button
+            size="lg"
+            onClick={handleStartWorkout}
+            disabled={isStarting}
             className="bg-primary hover:bg-primary/90 text-white font-bold text-xl px-12 py-8 rounded-full shadow-[0_0_30px_rgba(var(--primary),0.4)] hover:scale-105 transition-transform relative z-10"
           >
             {isStarting ? <Loader2 className="w-6 h-6 animate-spin mr-2" /> : <PlayCircle className="w-8 h-8 mr-3" />}
@@ -345,20 +378,20 @@ export function TreinoToday() {
           <Activity className="w-16 h-16 text-emerald-500 mb-6 relative z-10" />
           <h2 className="text-3xl font-bold text-white mb-3 relative z-10">Musculação Concluída! 💪</h2>
           <p className="text-zinc-400 mb-8 max-w-md relative z-10 text-lg">Deseja fazer cardio agora para finalizar o dia?</p>
-          
+
           <div className="flex gap-4 relative z-10 w-full max-w-md">
-            <Button 
-              size="lg" 
-              onClick={() => handleCardioDecision(false)} 
+            <Button
+              size="lg"
+              onClick={() => handleCardioDecision(false)}
               disabled={isUpdatingStatus}
               variant="outline"
               className="flex-1 border-zinc-700 text-zinc-300 hover:bg-zinc-800 hover:text-white py-6"
             >
               Pular Cardio
             </Button>
-            <Button 
-              size="lg" 
-              onClick={() => handleCardioDecision(true)} 
+            <Button
+              size="lg"
+              onClick={() => handleCardioDecision(true)}
               disabled={isUpdatingStatus}
               className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white shadow-[0_0_20px_rgba(16,185,129,0.3)] py-6"
             >
@@ -379,7 +412,7 @@ export function TreinoToday() {
           <Activity className="w-12 h-12 text-emerald-500 mb-4 relative z-10" />
           <h2 className="text-2xl font-bold text-white mb-2 relative z-10">Sessão de Cardio</h2>
           <p className="text-zinc-400 mb-8 max-w-md relative z-10 text-center">Bora suar! Registre sua atividade e finalize o treino.</p>
-          
+
           <div className="w-full max-w-md space-y-6 bg-zinc-950 p-6 rounded-xl border border-zinc-800 relative z-10">
             <div className="space-y-3">
               <Label className="text-zinc-300">Intensidade</Label>
@@ -409,7 +442,7 @@ export function TreinoToday() {
               />
             </div>
 
-            <Button 
+            <Button
               onClick={handleFinishCardio}
               disabled={!cardioTime || isSavingCardio || isUpdatingStatus}
               className="w-full h-14 text-lg font-bold shadow-[0_0_20px_rgba(16,185,129,0.3)] bg-emerald-600 hover:bg-emerald-700 text-white"
@@ -417,8 +450,8 @@ export function TreinoToday() {
               {(isSavingCardio || isUpdatingStatus) ? <Loader2 className="w-5 h-5 mr-2 animate-spin" /> : <Trophy className="w-5 h-5 mr-2" />}
               Salvar e Finalizar Treino
             </Button>
-            
-            <Button 
+
+            <Button
               onClick={() => handleCardioDecision(false)}
               disabled={isSavingCardio || isUpdatingStatus}
               variant="ghost"
@@ -440,7 +473,7 @@ export function TreinoToday() {
     const todayLogs = allLogs.filter((l: any) => {
       return new Date(l.date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' }) === todayStr
     })
-    
+
     const pastLogs = allLogs.filter((l: any) => {
       return new Date(l.date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' }) !== todayStr
     })
@@ -451,7 +484,7 @@ export function TreinoToday() {
       const sortedPastDates = [...new Set(pastLogs.map((l: any) => new Date(l.date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })))].sort((a: any, b: any) => {
         const [dayA, monthA, yearA] = a.split('/')
         const [dayB, monthB, yearB] = b.split('/')
-        return new Date(Number(yearB), Number(monthB)-1, Number(dayB)).getTime() - new Date(Number(yearA), Number(monthA)-1, Number(dayA)).getTime()
+        return new Date(Number(yearB), Number(monthB) - 1, Number(dayB)).getTime() - new Date(Number(yearA), Number(monthA) - 1, Number(dayA)).getTime()
       })
       lastDateStr = sortedPastDates[0] as string
     }
@@ -463,7 +496,7 @@ export function TreinoToday() {
     // Calculate metrics
     const todayVolume = todayLogs.reduce((acc: number, log: any) => acc + (log.weight * log.repsDone), 0)
     const previousVolume = previousLogs.reduce((acc: number, log: any) => acc + (log.weight * log.repsDone), 0)
-    
+
     let todayMaxWeight = todayLogs.length > 0 ? Math.max(...todayLogs.map((l: any) => l.weight)) : 0
     let previousMaxWeight = previousLogs.length > 0 ? Math.max(...previousLogs.map((l: any) => l.weight)) : 0
     const isPerSide = ex.weightType === 'PER_SIDE'
@@ -505,7 +538,7 @@ export function TreinoToday() {
 
     const totalTodayVolume = processedExercises.reduce((acc, ex) => acc + ex.todayVolume, 0)
     const totalPreviousVolume = processedExercises.reduce((acc, ex) => acc + ex.previousVolume, 0)
-    
+
     let totalVolumeStatus = 'equal'
     if (totalPreviousVolume === 0 && totalTodayVolume > 0) totalVolumeStatus = 'new'
     else if (totalTodayVolume > totalPreviousVolume) totalVolumeStatus = 'up'
@@ -518,7 +551,7 @@ export function TreinoToday() {
         transition: { staggerChildren: 0.1 }
       }
     }
-    
+
     const itemVariants = {
       hidden: { y: 20, opacity: 0 },
       visible: { y: 0, opacity: 1, transition: { type: "spring" as const, stiffness: 100 } }
@@ -536,11 +569,10 @@ export function TreinoToday() {
               <button
                 key={log.id}
                 onClick={() => setSwappedWorkoutId(log.workoutId)}
-                className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${
-                  todayWorkout?.id === log.workoutId 
-                    ? 'bg-zinc-800 text-white shadow-sm' 
+                className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${todayWorkout?.id === log.workoutId
+                    ? 'bg-zinc-800 text-white shadow-sm'
                     : 'text-zinc-500 hover:text-zinc-300'
-                }`}
+                  }`}
               >
                 {log.workout?.name || "Treino"}
               </button>
@@ -549,16 +581,16 @@ export function TreinoToday() {
         )}
 
         {renderHeader()}
-        
+
         {/* HERO SECTION */}
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.5, type: "spring" }}
           className="relative w-full overflow-hidden rounded-3xl border border-zinc-800/80 bg-zinc-950/60 shadow-2xl backdrop-blur-xl mt-6"
         >
           <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/10 via-transparent to-primary/10 opacity-60"></div>
-          
+
           <div className="relative z-10 flex flex-col items-center p-8 sm:p-12 text-center">
             <motion.div
               initial={{ scale: 0, rotate: -20 }}
@@ -568,7 +600,7 @@ export function TreinoToday() {
             >
               <Trophy className="w-12 h-12 text-yellow-500 drop-shadow-[0_0_10px_rgba(234,179,8,0.5)]" />
             </motion.div>
-            
+
             <h2 className="text-4xl sm:text-5xl font-black text-white mb-3 tracking-tight">
               Treino Concluído!
             </h2>
@@ -576,15 +608,15 @@ export function TreinoToday() {
               Você dominou esse treino. O corpo que você quer, construído dia após dia.
             </p>
 
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               className="rounded-full bg-white/5 border-white/10 hover:bg-white/10 text-white font-medium shadow-sm transition-all active:scale-95"
               onClick={() => alert("Compartilhar com redes sociais - Em breve!")}
             >
               <Share2 className="w-4 h-4 mr-2" /> Compartilhar Conquista
             </Button>
           </div>
-          
+
           {/* QUICK STATS */}
           <div className="relative z-10 border-t border-zinc-800/80 bg-black/40 p-6 sm:p-8">
             <div className="flex flex-col sm:flex-row items-center justify-center gap-8 sm:gap-12 max-w-2xl mx-auto">
@@ -592,16 +624,16 @@ export function TreinoToday() {
                 <span className="text-5xl sm:text-6xl font-black text-white mb-1 drop-shadow-md">{doneExercises.length}</span>
                 <span className="text-xs sm:text-sm font-bold text-zinc-500 uppercase tracking-widest text-center">Exercícios</span>
               </div>
-              
+
               <div className="w-16 h-px sm:w-px sm:h-16 bg-zinc-800/80"></div>
-              
+
               <div className="flex flex-col items-center">
                 <span className="text-5xl sm:text-6xl font-black text-white mb-1 drop-shadow-md">{workoutDurationMins > 0 ? `${workoutDurationMins}m` : '-'}</span>
                 <span className="text-xs sm:text-sm font-bold text-zinc-500 uppercase tracking-widest text-center">Tempo</span>
               </div>
-              
+
               <div className="w-16 h-px sm:w-px sm:h-16 bg-zinc-800/80"></div>
-              
+
               <div className="flex flex-col items-center">
                 <div className="flex items-start gap-1">
                   <span className="text-5xl sm:text-6xl font-black text-white mb-1 drop-shadow-md">{totalTodayVolume}</span>
@@ -622,18 +654,18 @@ export function TreinoToday() {
                   {cardioDurationMins > 0 && <span className="text-emerald-500">{cardioDurationMins}m Cardio</span>}
                 </div>
                 <div className="h-2.5 w-full rounded-full bg-zinc-900 overflow-hidden flex shadow-inner">
-                  <motion.div 
+                  <motion.div
                     initial={{ width: 0 }}
                     animate={{ width: `${exercisePercent}%` }}
                     transition={{ duration: 1, delay: 0.5, ease: "easeOut" }}
-                    className="h-full bg-primary" 
+                    className="h-full bg-primary"
                   />
                   {cardioPercent > 0 && (
-                    <motion.div 
+                    <motion.div
                       initial={{ width: 0 }}
                       animate={{ width: `${cardioPercent}%` }}
                       transition={{ duration: 1, delay: 0.5, ease: "easeOut" }}
-                      className="h-full bg-emerald-500" 
+                      className="h-full bg-emerald-500"
                     />
                   )}
                 </div>
@@ -644,7 +676,7 @@ export function TreinoToday() {
 
         {/* DESEMPENHO DE HOJE */}
         {doneExercises.length > 0 && (
-          <motion.div 
+          <motion.div
             variants={containerVariants}
             initial="hidden"
             animate="visible"
@@ -667,9 +699,9 @@ export function TreinoToday() {
                 else if (ex.todayMaxWeight < ex.previousMaxWeight) weightStatus = 'down'
 
                 return (
-                  <motion.div 
+                  <motion.div
                     variants={itemVariants}
-                    key={ex.id} 
+                    key={ex.id}
                     className="bg-zinc-950/80 border border-zinc-800/80 p-5 rounded-2xl flex flex-col gap-5 shadow-lg backdrop-blur-sm hover:border-zinc-700 transition-colors"
                   >
                     <div className="flex items-center gap-4">
@@ -707,7 +739,7 @@ export function TreinoToday() {
                           {weightStatus === 'equal' && <span className="bg-zinc-800 text-zinc-400 text-[10px] font-bold px-2 py-1 rounded-full flex items-center">MANTEVE</span>}
                         </div>
                       </div>
-                      
+
                       {/* Volume Total */}
                       <div className="flex flex-col gap-1 bg-black/40 rounded-xl p-3 border border-white/5">
                         <span className="text-[10px] text-zinc-500 uppercase font-bold tracking-wider">Volume Total</span>
@@ -761,11 +793,10 @@ export function TreinoToday() {
           <div className="flex bg-zinc-950/80 p-1.5 rounded-2xl border border-zinc-800/80 shadow-inner gap-1">
             <button
               onClick={() => toggleViewMode('focus')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all ${
-                viewMode === 'focus' 
-                  ? 'bg-primary text-white shadow-[0_0_15px_rgba(var(--primary),0.5)]' 
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all ${viewMode === 'focus'
+                  ? 'bg-primary text-white shadow-[0_0_15px_rgba(var(--primary),0.5)]'
                   : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50'
-              }`}
+                }`}
               title="Modo Foco"
             >
               <Focus className={`w-4 h-4 ${viewMode === 'focus' ? 'animate-[pulse_2s_ease-in-out_infinite]' : ''}`} />
@@ -773,11 +804,10 @@ export function TreinoToday() {
             </button>
             <button
               onClick={() => toggleViewMode('list')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all ${
-                viewMode === 'list' 
-                  ? 'bg-zinc-800 text-white shadow-sm' 
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all ${viewMode === 'list'
+                  ? 'bg-zinc-800 text-white shadow-sm'
                   : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50'
-              }`}
+                }`}
               title="Modo Lista"
             >
               <List className="w-4 h-4" />
@@ -796,19 +826,19 @@ export function TreinoToday() {
             <p className="text-zinc-400">Nenhum exercício cadastrado ou todos estão desativados nesta ficha.</p>
           </div>
         ) : viewMode === 'focus' ? (
-          <TreinoFocusView 
-            workoutId={todayWorkout.id} 
-            exercises={exercises} 
-            onFinishAll={() => toggleViewMode('list')} 
+          <TreinoFocusView
+            workoutId={todayWorkout.id}
+            exercises={exercises}
+            onFinishAll={() => toggleViewMode('list')}
             onClose={() => toggleViewMode('list')}
           />
         ) : (
           exercises.filter(ex => ex.isActive).map((workoutExercise, index) => (
-            <ExerciseCard 
-              key={workoutExercise.id} 
+            <ExerciseCard
+              key={workoutExercise.id}
               workoutExercise={workoutExercise}
               index={index}
-              isCompleted={false} 
+              isCompleted={false}
               onSetComplete={handleSetComplete}
             />
           ))
@@ -817,7 +847,7 @@ export function TreinoToday() {
 
       {viewMode === 'list' && (
         <div className="pt-8 border-t border-zinc-800/50">
-          <Button 
+          <Button
             onClick={handleFinishMuscleTraining}
             className="w-full h-14 text-lg font-bold shadow-[0_0_20px_rgba(var(--primary),0.3)] bg-primary hover:bg-primary/90 text-white"
           >
@@ -828,7 +858,7 @@ export function TreinoToday() {
       )}
 
       {viewMode === 'list' && showRestTimer && (
-        <RestTimer 
+        <RestTimer
           key={restTimerKey}
           initialSeconds={120} // We can pull this from user profile later, hardcoding 2 min for now
           onClose={() => setShowRestTimer(false)}

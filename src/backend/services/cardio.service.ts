@@ -5,21 +5,31 @@ export class CardioService {
    * Loga a atividade de cardio para o dia atual. 
    * Se já existir, atualiza. Se duration for 0 e não houver target, exclui.
    */
-  static async logCardio(userId: string, data: { 
-    intensity: string; 
-    duration: number; 
+  static async logCardio(userId: string, data: {
+    intensity?: string;
+    duration: number;
     workoutId?: string;
     workoutLogId?: string;
     type?: string;
     targetDuration?: number;
     startTime?: Date;
     endTime?: Date;
+    status?: string;
+    startIso?: string | null;
+    endIso?: string | null;
   }) {
-    const startOfDay = new Date();
-    startOfDay.setHours(0, 0, 0, 0);
+    let startOfDay: Date;
+    let endOfDay: Date;
 
-    const endOfDay = new Date();
-    endOfDay.setHours(23, 59, 59, 999);
+    if (data.startIso && data.endIso) {
+      startOfDay = new Date(data.startIso);
+      endOfDay = new Date(data.endIso);
+    } else {
+      startOfDay = new Date();
+      startOfDay.setHours(0, 0, 0, 0);
+      endOfDay = new Date();
+      endOfDay.setHours(23, 59, 59, 999);
+    }
 
     const existingLog = await prisma.cardioLog.findFirst({
       where: {
@@ -50,6 +60,7 @@ export class CardioService {
       targetDuration: data.targetDuration,
       startTime: data.startTime,
       endTime: data.endTime,
+      status: data.status || "IN_PROGRESS",
     };
 
     if (existingLog) {
@@ -70,12 +81,19 @@ export class CardioService {
   /**
    * Busca o registro de cardio de hoje do usuário
    */
-  static async getTodayCardio(userId: string) {
-    const startOfDay = new Date();
-    startOfDay.setHours(0, 0, 0, 0);
+  static async getTodayCardio(userId: string, startIso?: string | null, endIso?: string | null) {
+    let startOfDay: Date;
+    let endOfDay: Date;
 
-    const endOfDay = new Date();
-    endOfDay.setHours(23, 59, 59, 999);
+    if (startIso && endIso) {
+      startOfDay = new Date(startIso);
+      endOfDay = new Date(endIso);
+    } else {
+      startOfDay = new Date();
+      startOfDay.setHours(0, 0, 0, 0);
+      endOfDay = new Date();
+      endOfDay.setHours(23, 59, 59, 999);
+    }
 
     return await prisma.cardioLog.findFirst({
       where: {
@@ -88,3 +106,4 @@ export class CardioService {
     });
   }
 }
+

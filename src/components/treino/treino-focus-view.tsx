@@ -4,10 +4,11 @@ import { useState, useEffect, useMemo } from "react"
 import { Dumbbell, CheckCircle2, ChevronLeft, ChevronRight, Minimize2, Lock, Unlock } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useLogExercise } from "@/src/hooks/use-exercise"
-import { useLogCardio } from "@/src/hooks/use-cardio"
+import { useLogCardio, useTodayCardio } from "@/src/hooks/use-cardio"
 import { useUpdateWorkoutStatus } from "@/src/hooks/use-workout-log"
 import { useTimerStore } from "@/src/store/use-timer-store"
 import { cn } from "@/lib/utils"
+import { useCardioTimerStore } from "@/src/store/use-cardio-timer-store"
 import { TreinoHistoryDialog } from "./treino-history-dialog"
 import { SwipeIndicator } from "./focus-view/swipe-indicator"
 import { TreinoSummaryDialog } from "./treino-summary-dialog"
@@ -20,6 +21,7 @@ import { checkIsSetCompleted, findNextPendingSet } from "./focus-view/utils/work
 import { PendingPrompt } from "./focus-view/pending-prompt"
 import { CardioPrompt } from "./focus-view/cardio-prompt"
 import { CardioActive } from "./focus-view/cardio-active"
+import { FinishCardioPrompt } from "./focus-view/finish-cardio-prompt"
 import { TopBar } from "./focus-view/top-bar"
 import { RestView } from "./focus-view/rest-view"
 import { ActiveSetView } from "./focus-view/active-set-view"
@@ -42,6 +44,7 @@ export function TreinoFocusView({ workoutId, exercises, onFinishAll, onClose }: 
   const todayStr = useMemo(() => new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' }), [])
 
   const [hasInitialized, setHasInitialized] = useState(false)
+  const { isCardioActive, cardioType: globalCardioType } = useCardioTimerStore()
   const [currentIndex, setCurrentIndex] = useState(0)
   const [currentSet, setCurrentSet] = useState(1)
   const [direction, setDirection] = useState(1) // 1 para ir pra frente, -1 para voltar
@@ -81,6 +84,8 @@ export function TreinoFocusView({ workoutId, exercises, onFinishAll, onClose }: 
   const [cardioType, setCardioType] = useState('Esteira')
   const [cardioIntensity, setCardioIntensity] = useState('moderado')
   const [cardioTime, setCardioTime] = useState('')
+  const [cardioFinished, setCardioFinished] = useState(false)
+  const [cardioActualTime, setCardioActualTime] = useState(0)
 
   const [isViewingHistory, setIsViewingHistory] = useState(false)
   const [autoAdvanceTimeLeft, setAutoAdvanceTimeLeft] = useState(10)
@@ -97,6 +102,23 @@ export function TreinoFocusView({ workoutId, exercises, onFinishAll, onClose }: 
   const { mutateAsync: logExercise, isPending: isSaving } = useLogExercise(workoutId)
   const { mutateAsync: logCardio, isPending: isSavingCardio } = useLogCardio()
   const { mutateAsync: updateStatus, isPending: isUpdatingStatus } = useUpdateWorkoutStatus(workoutId)
+
+  const { data: todayCardio } = useTodayCardio()
+
+  const handleStartCardio = async () => {
+    try {
+      await logCardio({
+        workoutId,
+        type: cardioType,
+        targetDuration: Number(cardioTime),
+        duration: 0,
+        startTime: new Date(),
+        status: 'IN_PROGRESS'
+      })
+    } catch (error) {
+      console.error("Erro ao iniciar cardio.", error)
+    }
+  }
 
   // Wrapper local para checkIsSetCompleted
   const localCheckIsSetCompleted = (exerciseIndex: number, setNum: number) => {
@@ -128,7 +150,7 @@ export function TreinoFocusView({ workoutId, exercises, onFinishAll, onClose }: 
       s.push({ type: 'CARDIO' })
     }
     return s
-  }, [activeExercises, pendingExercisesList, wantsCardio])
+  }, [activeExercises, pendingExercisesList, wantsCardio, cardioFinished])
 
   useEffect(() => {
     if (currentIndex >= steps.length) {
@@ -140,8 +162,17 @@ export function TreinoFocusView({ workoutId, exercises, onFinishAll, onClose }: 
     const cardioIdx = steps.findIndex(s => s.type === 'CARDIO')
     if (wantsCardio && cardioIdx !== -1 && currentIndex < cardioIdx) {
       setWantsCardio(false)
+      setCardioFinished(false)
     }
-  }, [currentIndex, wantsCardio, steps])
+    const finishCardioIdx = steps.findIndex(s => s.type === 'FINISH_CARDIO')
+    if (cardioFinished && finishCardioIdx !== -1 && currentIndex < finishCardioIdx) {
+      setCardioFinished(false)
+    }
+
+    if (todayCardio && todayCardio.status === 'IN_PROGRESS') {
+      setWantsCardio(true)
+    }
+  }, [currentIndex, wantsCardio, cardioFinished, steps, todayCardio])
 
   const goToPendingSet = () => {
     if (activeExercises.length === 0) return
@@ -302,13 +333,24 @@ export function TreinoFocusView({ workoutId, exercises, onFinishAll, onClose }: 
     }
   }
 
-  const handleFinishCardio = async () => {
+  const handleFinishWithExistingCardio = async () => {
+    try {
+      await updateStatus({ status: 'COMPLETED', hasCardio: true })
+      onFinishAll()
+    } catch (error) {
+      console.error("Erro ao finalizar treino.", error)
+    }
+  }
+
+  const handleFinishCardio = async (elapsedMinutes?: number) => {
     try {
       await logCardio({
         workoutId,
         type: cardioType,
         intensity: cardioIntensity,
-        duration: Number(cardioTime)
+        duration: elapsedMinutes !== undefined ? elapsedMinutes : (cardioActualTime > 0 ? cardioActualTime : Number(cardioTime)),
+        endTime: new Date(),
+        status: 'COMPLETED'
       })
       await updateStatus({ status: 'COMPLETED', hasCardio: true })
       onFinishAll()
@@ -372,13 +414,13 @@ export function TreinoFocusView({ workoutId, exercises, onFinishAll, onClose }: 
     } else {
       return
     }
-    
+
     setCurrentIndex(nextI)
     setCurrentSet(nextS)
     if (steps[nextI] && steps[nextI].type === 'EXERCISE') {
-       setIsViewingHistory(localCheckIsSetCompleted(nextI, nextS))
+      setIsViewingHistory(localCheckIsSetCompleted(nextI, nextS))
     } else {
-       setIsViewingHistory(false)
+      setIsViewingHistory(false)
     }
   }
 
@@ -450,252 +492,281 @@ export function TreinoFocusView({ workoutId, exercises, onFinishAll, onClose }: 
   return (
     <>
       <div className="fixed inset-0 z-[60]">
-            <div className={cn(
-              "flex flex-col bg-zinc-950 overflow-hidden shadow-2xl h-full w-full",
-              isHistoryMode ? "ring-inset ring-2 ring-amber-500/20" : ""
-            )}>
-              {/* Progress Bar Top */}
-              <div className="absolute top-0 left-0 right-0 h-1.5 bg-zinc-900 z-50">
-                <div
-                  className={cn("h-full transition-all duration-500 ease-out", isRestFinished ? "bg-emerald-500" : isHistoryMode ? "bg-amber-600" : "bg-primary")}
-                  style={{ width: `${progressPercent}%` }}
-                />
-              </div>
+        <div className={cn(
+          "flex flex-col bg-zinc-950 overflow-hidden shadow-2xl h-full w-full",
+          isHistoryMode ? "ring-inset ring-2 ring-amber-500/20" : ""
+        )}>
+          {/* Progress Bar Top */}
+          <div className="absolute top-0 left-0 right-0 h-1.5 bg-zinc-900 z-50">
+            <div
+              className={cn("h-full transition-all duration-500 ease-out", isRestFinished ? "bg-emerald-500" : isHistoryMode ? "bg-amber-600" : "bg-primary")}
+              style={{ width: `${progressPercent}%` }}
+            />
+          </div>
 
-              {/* Main Content Area */}
-              <div
-                className="flex-1 flex flex-col relative z-10 overflow-hidden select-none"
-                onTouchStart={onTouchStart}
-                onTouchMove={onTouchMove}
-                onTouchEnd={onTouchEnd}
-              >
+          {/* Main Content Area */}
+          <div
+            className="flex-1 flex flex-col relative z-10 overflow-hidden select-none"
+            onTouchStart={onTouchStart}
+            onTouchMove={onTouchMove}
+            onTouchEnd={onTouchEnd}
+          >
 
-                {/* Background Image */}
-                <div className="absolute inset-0 z-0">
-                  <AnimatePresence mode="wait">
-                    <motion.div 
-                      key={isRestFinished ? 'rest-finished' : (currentStep.type === 'EXERCISE' ? currentStep.ex.id : currentStep.type)}
-                      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.5 }}
-                      className="absolute inset-0"
-                    >
-                      {isRestFinished ? (
-                         <div className="absolute inset-0 bg-gradient-to-b from-emerald-500/20 via-zinc-950/80 to-zinc-950 opacity-90 animate-pulse" />
-                      ) : currentStep.type === 'EXERCISE' && currentExercise?.exercise?.imageUrl ? (
-                        <>
-                          <img
-                            src={currentExercise.exercise.imageUrl}
-                            alt={currentExercise?.exercise?.name}
-                            className="w-full h-full object-cover opacity-20 mix-blend-luminosity scale-105"
-                          />
-                          <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/80 to-transparent" />
-                        </>
-                      ) : currentStep.type === 'PENDING' ? (
-                          <div className="absolute inset-0 bg-gradient-to-b from-amber-500/10 via-zinc-950/50 to-zinc-950 opacity-80" />
-                      ) : currentStep.type === 'COMPLETED' ? (
-                          <div className="absolute inset-0 bg-gradient-to-b from-primary/10 via-zinc-950/50 to-zinc-950 opacity-80" />
-                      ) : currentStep.type === 'CARDIO' ? (
-                          <div className="absolute inset-0 bg-gradient-to-b from-primary/10 via-zinc-950/50 to-zinc-950 opacity-80" />
-                      ) : (
-                        <div className="absolute inset-0 bg-zinc-900 flex items-center justify-center opacity-10">
-                          <Dumbbell className="w-64 h-64 text-zinc-800" />
-                        </div>
-                      )}
-                    </motion.div>
-                  </AnimatePresence>
-                </div>
-
-                {/* Content */}
-                <div className="flex-1 z-10 flex flex-col justify-between px-6 sm:px-12 py-6">
-
-                  <TopBar
-                    onClose={onClose}
-                    steps={steps}
-                    currentIndex={currentIndex}
-                    checkIsSetCompleted={localCheckIsSetCompleted}
-                    setCurrentIndex={(idx) => {
-                      if (idx > currentIndex) setDirection(1);
-                      else if (idx < currentIndex) setDirection(-1);
-                      setCurrentIndex(idx);
-                    }}
-                    setCurrentSet={(set) => setCurrentSet(set)}
-                    setIsViewingHistory={setIsViewingHistory}
-                    setIsSummaryModalOpen={setIsSummaryModalOpen}
-                    progressPercent={progressPercent}
-                    isHistoryMode={isHistoryMode}
-                    isRestFinished={isRestFinished}
-                  />
-
-                  {/* Middle Content Animated */}
-                  <div className="flex flex-col justify-center flex-1 my-2 overflow-hidden w-full relative">
-                    <AnimatePresence mode="wait" custom={direction}>
-                      <motion.div
-                        key={currentStep.type === 'EXERCISE' ? currentStep.ex.id : currentStep.type}
-                        custom={direction}
-                        variants={{
-                          enter: (dir: number) => ({
-                            x: dir > 0 ? 50 : -50,
-                            opacity: 0,
-                            scale: 0.95
-                          }),
-                          center: {
-                            x: 0,
-                            opacity: 1,
-                            scale: 1
-                          },
-                          exit: (dir: number) => ({
-                            x: dir < 0 ? 50 : -50,
-                            opacity: 0,
-                            scale: 0.95
-                          })
-                        }}
-                        initial="enter"
-                        animate="center"
-                        exit="exit"
-                        transition={{ duration: 0.3, ease: "easeInOut" }}
-                        className="w-full flex flex-col items-center justify-center h-full"
-                      >
-                        {currentStep.type === 'EXERCISE' && currentExercise && (
-                          <>
-                            <div className="text-center mb-8 w-full">
-                              <h2 className="text-3xl sm:text-5xl font-black text-white mb-4 drop-shadow-xl tracking-tight">
-                                {currentExercise.exercise.name}
-                              </h2>
-                              <div className="flex items-center justify-center gap-2 sm:gap-3 mt-4 flex-wrap">
-                                {Array.from({ length: currentExercise.sets }).map((_, idx) => {
-                                  const setNum = idx + 1
-                                  const isCompleted = localCheckIsSetCompleted(currentIndex, setNum)
-                                  const isCurrent = setNum === currentSet
-
-                                  return (
-                                    <div
-                                      key={setNum}
-                                      onClick={() => {
-                                        if (setNum > currentSet) setDirection(1);
-                                        else if (setNum < currentSet) setDirection(-1);
-                                        setCurrentSet(setNum)
-                                        setIsViewingHistory(isCompleted)
-                                      }}
-                                      className={cn(
-                                        "w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center font-bold text-sm sm:text-base transition-all duration-300 cursor-pointer",
-                                        isCompleted && !isCurrent ? (isRestFinished ? "bg-emerald-600 text-white shadow-[0_0_15px_rgba(16,185,129,0.5)]" : isHistoryMode ? "bg-amber-600 text-white shadow-[0_0_15px_rgba(245,158,11,0.5)]" : "bg-primary text-white shadow-[0_0_15px_rgba(var(--primary),0.5)]") : (!isCurrent ? "bg-zinc-900/80 text-zinc-500 backdrop-blur-md" : ""),
-                                        isCurrent ? (isRestFinished ? (isCompleted ? "bg-emerald-600 text-white ring-4 ring-emerald-500/30 scale-110 shadow-[0_0_20px_rgba(16,185,129,0.8)]" : "border-2 border-emerald-500 text-emerald-500 bg-emerald-500/10 scale-110 shadow-[0_0_20px_rgba(16,185,129,0.3)]") : isHistoryMode ? "bg-amber-600 text-white ring-4 ring-amber-500/30 scale-110 shadow-[0_0_20px_rgba(245,158,11,0.8)]" : "border-2 border-primary text-primary bg-primary/10 scale-110") : "border border-zinc-800"
-                                      )}
-                                    >
-                                      {isCompleted ? <CheckCircle2 className="w-5 h-5 sm:w-6 sm:h-6" /> : setNum}
-                                    </div>
-                                  )
-                                })}
-                              </div>
-                            </div>
-
-                            <div className="w-full relative flex-1 flex flex-col justify-center">
-                              <AnimatePresence mode="wait">
-                                <motion.div
-                                  key={isResting ? 'rest' : 'active'}
-                                  initial={{ opacity: 0, scale: 0.95 }}
-                                  animate={{ opacity: 1, scale: 1 }}
-                                  exit={{ opacity: 0, scale: 0.95 }}
-                                  transition={{ duration: 0.2 }}
-                                  className="w-full flex flex-col"
-                                >
-                                  {!isResting ? (
-                                    <ActiveSetView
-                                      currentExercise={currentExercise}
-                                      currentIndex={currentIndex}
-                                      currentSet={currentSet}
-                                      checkIsSetCompleted={localCheckIsSetCompleted}
-                                      setCurrentSet={setCurrentSet}
-                                      setIsViewingHistory={setIsViewingHistory}
-                                      isHistoryMode={isHistoryMode}
-                                      hasUncompletedPreviousSets={hasUncompletedPreviousSets}
-                                      weightInput={weightInput}
-                                      setWeightInput={setWeightInput}
-                                      repsInput={repsInput}
-                                      setRepsInput={setRepsInput}
-                                      setIsHistoryModalOpen={setIsHistoryModalOpen}
-                                      historyLog={historyLog}
-                                      hasUnsavedChanges={hasUnsavedChanges}
-                                      handleSave={handleSave}
-                                      isSaving={isSaving}
-                                      goToPendingSet={goToPendingSet}
-                                      isPerSide={currentExercise.weightType === 'PER_SIDE'}
-                                    />
-                                  ) : (
-                                    <RestView
-                                      addTime={addTime}
-                                      restTimeLeft={restTimeLeft}
-                                      restTimeGoal={restTimeGoal}
-                                      isHistoryMode={isHistoryMode}
-                                      historyLog={historyLog}
-                                      handleRestFinished={handleRestFinished}
-                                      autoAdvanceTimeLeft={autoAdvanceTimeLeft}
-                                      isPerSide={currentExercise.weightType === 'PER_SIDE'}
-                                    />
-                                  )}
-                                </motion.div>
-                              </AnimatePresence>
-                            </div>
-                          </>
-                        )}
-
-                        {currentStep.type === 'PENDING' && (
-                          <PendingPrompt
-                            pendingExercisesList={pendingExercisesList}
-                            setCurrentIndex={setCurrentIndex}
-                            setCurrentSet={setCurrentSet}
-                            setPhase={(phase) => {
-                              if (phase === 'CARDIO_PROMPT') {
-                                setDirection(1)
-                                setCurrentIndex(prev => prev + 1)
-                              }
-                            }} 
-                            setIsViewingHistory={setIsViewingHistory}
-                          />
-                        )}
-
-                        {currentStep.type === 'COMPLETED' && (
-                          <CardioPrompt
-                            setPhase={(phase) => {
-                                if (phase === 'CARDIO_ACTIVE') {
-                                    setDirection(1)
-                                    setWantsCardio(true)
-                                    setCurrentIndex(prev => prev + 1)
-                                }
-                            }}
-                            isUpdatingStatus={isUpdatingStatus}
-                            handleSkipCardio={handleSkipCardio}
-                          />
-                        )}
-
-                        {currentStep.type === 'CARDIO' && (
-                          <CardioActive
-                            cardioType={cardioType}
-                            setCardioType={setCardioType}
-                            cardioIntensity={cardioIntensity}
-                            setCardioIntensity={setCardioIntensity}
-                            cardioTime={cardioTime}
-                            setCardioTime={setCardioTime}
-                            handleFinishCardio={handleFinishCardio}
-                            handleSkipCardio={handleSkipCardio}
-                            isSavingCardio={isSavingCardio}
-                            isUpdatingStatus={isUpdatingStatus}
-                          />
-                        )}
-                      </motion.div>
-                    </AnimatePresence>
-                  </div>
-                  <SwipeIndicator
-                    isSwipeLocked={isSwipeLocked}
-                    setIsSwipeLocked={setIsSwipeLocked}
-                    shakeLock={shakeLock}
-                    onNext={handleNextSlide}
-                    onPrev={handlePrevSlide}
-                    hasNext={currentIndex < steps.length - 1}
-                  />
-                </div>
-
-              </div>
+            {/* Background Image */}
+            <div className="absolute inset-0 z-0">
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={isRestFinished ? 'rest-finished' : (currentStep.type === 'EXERCISE' ? currentStep.ex.id : currentStep.type)}
+                  initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.5 }}
+                  className="absolute inset-0"
+                >
+                  {isRestFinished ? (
+                    <div className="absolute inset-0 bg-gradient-to-b from-emerald-500/20 via-zinc-950/80 to-zinc-950 opacity-90 animate-pulse" />
+                  ) : currentStep.type === 'EXERCISE' && currentExercise?.exercise?.imageUrl ? (
+                    <>
+                      <img
+                        src={currentExercise.exercise.imageUrl}
+                        alt={currentExercise?.exercise?.name}
+                        className="w-full h-full object-cover opacity-20 mix-blend-luminosity scale-105"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/80 to-transparent" />
+                    </>
+                  ) : currentStep.type === 'PENDING' ? (
+                    <div className="absolute inset-0 bg-gradient-to-b from-amber-500/10 via-zinc-950/50 to-zinc-950 opacity-80" />
+                  ) : currentStep.type === 'COMPLETED' ? (
+                    <div className="absolute inset-0 bg-gradient-to-b from-primary/10 via-zinc-950/50 to-zinc-950 opacity-80" />
+                  ) : currentStep.type === 'CARDIO' ? (() => {
+                    const bgImage = (() => {
+                      const type = isCardioActive ? globalCardioType : cardioType;
+                      switch (type) {
+                        case 'Esteira': return "https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises/Jogging_Treadmill/0.jpg"
+                        case 'Bike': return "https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises/Recumbent_Bike/0.jpg"
+                        case 'Escada': return "https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises/Stairmaster/0.jpg"
+                        default: return null
+                      }
+                    })()
+                    return bgImage ? (
+                      <>
+                        <img
+                          src={bgImage}
+                          alt="Cardio"
+                          className="w-full h-full object-cover opacity-15 mix-blend-luminosity scale-105"
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/80 to-transparent" />
+                      </>
+                    ) : (
+                      <div className="absolute inset-0 bg-gradient-to-b from-primary/10 via-zinc-950/50 to-zinc-950 opacity-80" />
+                    )
+                  })() : (
+                    <div className="absolute inset-0 bg-zinc-900 flex items-center justify-center opacity-10">
+                      <Dumbbell className="w-64 h-64 text-zinc-800" />
+                    </div>
+                  )}
+                </motion.div>
+              </AnimatePresence>
             </div>
+
+            {/* Content */}
+            <div className="flex-1 z-10 flex flex-col justify-between px-6 sm:px-12 py-6">
+
+              <TopBar
+                onClose={onClose}
+                steps={steps}
+                currentIndex={currentIndex}
+                checkIsSetCompleted={localCheckIsSetCompleted}
+                setCurrentIndex={(idx) => {
+                  if (idx > currentIndex) setDirection(1);
+                  else if (idx < currentIndex) setDirection(-1);
+                  setCurrentIndex(idx);
+                }}
+                setCurrentSet={(set) => setCurrentSet(set)}
+                setIsViewingHistory={setIsViewingHistory}
+                setIsSummaryModalOpen={setIsSummaryModalOpen}
+                progressPercent={progressPercent}
+                isHistoryMode={isHistoryMode}
+                isRestFinished={isRestFinished}
+              />
+
+              {/* Middle Content Animated */}
+              <div className="flex flex-col justify-center flex-1 my-2 overflow-hidden w-full relative">
+                <AnimatePresence mode="wait" custom={direction}>
+                  <motion.div
+                    key={currentStep.type === 'EXERCISE' ? currentStep.ex.id : currentStep.type}
+                    custom={direction}
+                    variants={{
+                      enter: (dir: number) => ({
+                        x: dir > 0 ? 50 : -50,
+                        opacity: 0,
+                        scale: 0.95
+                      }),
+                      center: {
+                        x: 0,
+                        opacity: 1,
+                        scale: 1
+                      },
+                      exit: (dir: number) => ({
+                        x: dir < 0 ? 50 : -50,
+                        opacity: 0,
+                        scale: 0.95
+                      })
+                    }}
+                    initial="enter"
+                    animate="center"
+                    exit="exit"
+                    transition={{ duration: 0.3, ease: "easeInOut" }}
+                    className="w-full flex flex-col items-center justify-center h-full"
+                  >
+                    {currentStep.type === 'EXERCISE' && currentExercise && (
+                      <>
+                        <div className="text-center mb-8 w-full">
+                          <h2 className="text-3xl sm:text-5xl font-black text-white mb-4 drop-shadow-xl tracking-tight">
+                            {currentExercise.exercise.name}
+                          </h2>
+                          <div className="flex items-center justify-center gap-2 sm:gap-3 mt-4 flex-wrap">
+                            {Array.from({ length: currentExercise.sets }).map((_, idx) => {
+                              const setNum = idx + 1
+                              const isCompleted = localCheckIsSetCompleted(currentIndex, setNum)
+                              const isCurrent = setNum === currentSet
+
+                              return (
+                                <div
+                                  key={setNum}
+                                  onClick={() => {
+                                    if (setNum > currentSet) setDirection(1);
+                                    else if (setNum < currentSet) setDirection(-1);
+                                    setCurrentSet(setNum)
+                                    setIsViewingHistory(isCompleted)
+                                  }}
+                                  className={cn(
+                                    "w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center font-bold text-sm sm:text-base transition-all duration-300 cursor-pointer",
+                                    isCompleted && !isCurrent ? (isRestFinished ? "bg-emerald-600 text-white shadow-[0_0_15px_rgba(16,185,129,0.5)]" : isHistoryMode ? "bg-amber-600 text-white shadow-[0_0_15px_rgba(245,158,11,0.5)]" : "bg-primary text-white shadow-[0_0_15px_rgba(var(--primary),0.5)]") : (!isCurrent ? "bg-zinc-900/80 text-zinc-500 backdrop-blur-md" : ""),
+                                    isCurrent ? (isRestFinished ? (isCompleted ? "bg-emerald-600 text-white ring-4 ring-emerald-500/30 scale-110 shadow-[0_0_20px_rgba(16,185,129,0.8)]" : "border-2 border-emerald-500 text-emerald-500 bg-emerald-500/10 scale-110 shadow-[0_0_20px_rgba(16,185,129,0.3)]") : isHistoryMode ? "bg-amber-600 text-white ring-4 ring-amber-500/30 scale-110 shadow-[0_0_20px_rgba(245,158,11,0.8)]" : "border-2 border-primary text-primary bg-primary/10 scale-110") : "border border-zinc-800"
+                                  )}
+                                >
+                                  {isCompleted ? <CheckCircle2 className="w-5 h-5 sm:w-6 sm:h-6" /> : setNum}
+                                </div>
+                              )
+                            })}
+                          </div>
+                        </div>
+
+                        <div className="w-full relative flex-1 flex flex-col justify-center">
+                          <AnimatePresence mode="wait">
+                            <motion.div
+                              key={isResting ? 'rest' : 'active'}
+                              initial={{ opacity: 0, scale: 0.95 }}
+                              animate={{ opacity: 1, scale: 1 }}
+                              exit={{ opacity: 0, scale: 0.95 }}
+                              transition={{ duration: 0.2 }}
+                              className="w-full flex flex-col"
+                            >
+                              {!isResting ? (
+                                <ActiveSetView
+                                  currentExercise={currentExercise}
+                                  currentIndex={currentIndex}
+                                  currentSet={currentSet}
+                                  checkIsSetCompleted={localCheckIsSetCompleted}
+                                  setCurrentSet={setCurrentSet}
+                                  setIsViewingHistory={setIsViewingHistory}
+                                  isHistoryMode={isHistoryMode}
+                                  hasUncompletedPreviousSets={hasUncompletedPreviousSets}
+                                  weightInput={weightInput}
+                                  setWeightInput={setWeightInput}
+                                  repsInput={repsInput}
+                                  setRepsInput={setRepsInput}
+                                  setIsHistoryModalOpen={setIsHistoryModalOpen}
+                                  historyLog={historyLog}
+                                  hasUnsavedChanges={hasUnsavedChanges}
+                                  handleSave={handleSave}
+                                  isSaving={isSaving}
+                                  goToPendingSet={goToPendingSet}
+                                  isPerSide={currentExercise.weightType === 'PER_SIDE'}
+                                />
+                              ) : (
+                                <RestView
+                                  addTime={addTime}
+                                  restTimeLeft={restTimeLeft}
+                                  restTimeGoal={restTimeGoal}
+                                  isHistoryMode={isHistoryMode}
+                                  historyLog={historyLog}
+                                  handleRestFinished={handleRestFinished}
+                                  autoAdvanceTimeLeft={autoAdvanceTimeLeft}
+                                  isPerSide={currentExercise.weightType === 'PER_SIDE'}
+                                />
+                              )}
+                            </motion.div>
+                          </AnimatePresence>
+                        </div>
+                      </>
+                    )}
+
+                    {currentStep.type === 'PENDING' && (
+                      <PendingPrompt
+                        pendingExercisesList={pendingExercisesList}
+                        setCurrentIndex={setCurrentIndex}
+                        setCurrentSet={setCurrentSet}
+                        setPhase={(phase) => {
+                          if (phase === 'CARDIO_PROMPT') {
+                            setDirection(1)
+                            setCurrentIndex(prev => prev + 1)
+                          }
+                        }}
+                        setIsViewingHistory={setIsViewingHistory}
+                      />
+                    )}
+
+                    {currentStep.type === 'COMPLETED' && (
+                      <CardioPrompt
+                        setPhase={(phase) => {
+                          if (phase === 'CARDIO_ACTIVE') {
+                            setDirection(1)
+                            setWantsCardio(true)
+                            setCurrentIndex(prev => prev + 1)
+                          }
+                        }}
+                        isUpdatingStatus={isUpdatingStatus}
+                        handleSkipCardio={handleSkipCardio}
+                        todayCardio={todayCardio}
+                        handleFinishWithExistingCardio={handleFinishWithExistingCardio}
+                      />
+                    )}
+
+                    {currentStep.type === 'CARDIO' && (
+                      <CardioActive
+                        cardioType={cardioType}
+                        setCardioType={setCardioType}
+                        cardioTime={cardioTime}
+                        setCardioTime={setCardioTime}
+                        onFinishCardioTimer={(elapsedMinutes) => {
+                          setCardioActualTime(elapsedMinutes)
+                          setCardioFinished(true)
+                        }}
+                        handleSkipCardio={handleSkipCardio}
+                        todayCardio={todayCardio}
+                        onStartCardio={handleStartCardio}
+                        isStartingCardio={isSavingCardio || isUpdatingStatus}
+                        cardioIntensity={cardioIntensity}
+                        setCardioIntensity={setCardioIntensity}
+                        handleFinishCardioWithSave={handleFinishCardio}
+                        isSavingCardio={isSavingCardio}
+                        isUpdatingStatus={isUpdatingStatus}
+                      />
+                    )}
+                  </motion.div>
+                </AnimatePresence>
+              </div>
+              <SwipeIndicator
+                isSwipeLocked={isSwipeLocked}
+                setIsSwipeLocked={setIsSwipeLocked}
+                shakeLock={shakeLock}
+                onNext={handleNextSlide}
+                onPrev={handlePrevSlide}
+                hasNext={currentIndex < steps.length - 1}
+              />
+            </div>
+
+          </div>
+        </div>
       </div>
 
       <TreinoHistoryDialog

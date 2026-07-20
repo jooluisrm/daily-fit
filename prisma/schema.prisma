@@ -156,11 +156,12 @@ model CardioLog {
   workoutLogId String?
 
   type           String    @default("Esteira") // "Esteira", "Bike", "Escada"
-  intensity      String // "leve", "moderado", "intenso"
+  intensity      String? // "leve", "moderado", "intenso"
   duration       Int // em minutos (tempo real ou registrado antes)
   targetDuration Int? // meta em minutos
   startTime      DateTime?
   endTime        DateTime?
+  status         String    @default("IN_PROGRESS") // IN_PROGRESS, COMPLETED
   date           DateTime  @default(now())
 
   user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)

@@ -2,14 +2,18 @@ import { NextResponse } from 'next/server';
 import { auth } from '@/src/auth';
 import { CardioService } from '@/src/backend/services/cardio.service';
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
     const session = await auth();
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Não autorizado.' }, { status: 401 });
     }
 
-    const cardioLog = await CardioService.getTodayCardio(session.user.id);
+    const { searchParams } = new URL(req.url);
+    const startIso = searchParams.get('startIso');
+    const endIso = searchParams.get('endIso');
+
+    const cardioLog = await CardioService.getTodayCardio(session.user.id, startIso, endIso);
     return NextResponse.json(cardioLog || null);
   } catch (error: any) {
     console.error('Erro ao buscar cardio de hoje:', error);
@@ -29,8 +33,8 @@ export async function POST(req: Request) {
 
     const data = await req.json();
 
-    if (data.duration === undefined || !data.intensity) {
-      return NextResponse.json({ error: 'Campos duration e intensity são obrigatórios.' }, { status: 400 });
+    if (data.duration === undefined) {
+      return NextResponse.json({ error: 'O campo duration é obrigatório.' }, { status: 400 });
     }
 
     const cardioLog = await CardioService.logCardio(session.user.id, {
@@ -42,6 +46,9 @@ export async function POST(req: Request) {
       targetDuration: data.targetDuration ? Number(data.targetDuration) : undefined,
       startTime: data.startTime ? new Date(data.startTime) : undefined,
       endTime: data.endTime ? new Date(data.endTime) : undefined,
+      status: data.status,
+      startIso: data.startIso,
+      endIso: data.endIso
     });
 
     return NextResponse.json(cardioLog || { message: 'Cardio removido com sucesso' });

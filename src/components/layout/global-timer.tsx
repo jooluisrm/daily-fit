@@ -1,20 +1,26 @@
 "use client"
-import { Timer, CheckCircle2 } from "lucide-react"
+import { Timer, CheckCircle2, Activity } from "lucide-react"
 import { cn } from "@/lib/utils"
 
-import { useEffect, useState, useRef } from "react"
+import { useEffect, useRef } from "react"
 import { useTimerStore } from "@/src/store/use-timer-store"
+import { useCardioTimerStore } from "@/src/store/use-cardio-timer-store"
 import { playBeep } from "@/src/lib/audio"
 import { sendPushNotification } from "@/src/lib/notifications"
 import { usePathname, useRouter } from "next/navigation"
+
 export function GlobalTimer() {
-  const { isResting, restTimeLeft, tick, stopTimer } = useTimerStore()
+  const { isResting, restTimeLeft, tick } = useTimerStore()
+  const { isCardioActive, cardioElapsedSeconds, cardioTargetSeconds, cardioType, tickCardio } = useCardioTimerStore()
+  
   const pathname = usePathname()
   const router = useRouter()
   
-  // Ref para controlar se já tocou o som nesta contagem
   const hasBeeped = useRef(false)
+  const cardioHasBeeped = useRef(false)
   const wakeLockRef = useRef<any>(null)
+
+  const isAnyTimerActive = isResting || isCardioActive
 
   const requestWakeLock = async () => {
     try {
@@ -33,49 +39,44 @@ export function GlobalTimer() {
     }
   }
 
-  // Re-solicitar o wake lock se o app voltar a ficar visível
   useEffect(() => {
     const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible' && isResting) {
+      if (document.visibilityState === 'visible' && isAnyTimerActive) {
         requestWakeLock()
       }
     }
     document.addEventListener('visibilitychange', handleVisibilityChange)
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange)
-    }
-  }, [isResting])
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
+  }, [isAnyTimerActive])
 
-  // Controle do Wake Lock baseado no estado isResting
   useEffect(() => {
-    if (isResting) {
+    if (isAnyTimerActive) {
       requestWakeLock()
     } else {
       releaseWakeLock()
     }
-    
-    return () => {
-      releaseWakeLock()
-    }
-  }, [isResting])
+    return () => { releaseWakeLock() }
+  }, [isAnyTimerActive])
 
+  // Rest Timer Interval
   useEffect(() => {
     let interval: NodeJS.Timeout | null = null
-    
     if (isResting) {
-      interval = setInterval(() => {
-        tick()
-      }, 1000)
+      interval = setInterval(() => tick(), 1000)
     }
-
-    return () => {
-      if (interval) clearInterval(interval)
-    }
+    return () => { if (interval) clearInterval(interval) }
   }, [isResting, tick])
 
+  // Cardio Timer Interval
+  useEffect(() => {
+    let interval: NodeJS.Timeout | null = null
+    if (isCardioActive) {
+      interval = setInterval(() => tickCardio(), 1000)
+    }
+    return () => { if (interval) clearInterval(interval) }
+  }, [isCardioActive, tickCardio])
 
-
-  // Efeito para tocar o som quando chegar a 0
+  // Rest Timer Beep
   useEffect(() => {
     if (isResting && restTimeLeft === 0 && !hasBeeped.current) {
       playBeep()
@@ -86,17 +87,24 @@ export function GlobalTimer() {
     }
   }, [isResting, restTimeLeft])
 
-  let shouldHideUI = false;
-  if (!isResting) {
-    shouldHideUI = true;
-  } else if (pathname === "/treino") {
-    const savedMode = typeof window !== 'undefined' ? localStorage.getItem('daily-fit-view-mode') : 'list'
-    if (savedMode === 'focus') {
-      shouldHideUI = true;
+  // Cardio Timer Beep
+  useEffect(() => {
+    if (isCardioActive && cardioTargetSeconds > 0 && cardioElapsedSeconds >= cardioTargetSeconds && !cardioHasBeeped.current) {
+      playBeep()
+      sendPushNotification('Cardio Finalizado!', 'Você atingiu sua meta de tempo.')
+      cardioHasBeeped.current = true
+    } else if (isCardioActive && (cardioTargetSeconds === 0 || cardioElapsedSeconds < cardioTargetSeconds)) {
+      cardioHasBeeped.current = false
     }
-  }
+  }, [isCardioActive, cardioElapsedSeconds, cardioTargetSeconds])
 
-  const isFinished = restTimeLeft <= 0
+  const savedMode = typeof window !== 'undefined' ? localStorage.getItem('daily-fit-view-mode') : 'list'
+  
+  const shouldHideRestUI = !isResting || (pathname === "/treino" && savedMode === 'focus')
+  const shouldHideCardioUI = !isCardioActive || (pathname === "/treino" && savedMode === 'focus')
+
+  const isRestFinished = restTimeLeft <= 0
+  const isCardioFinished = cardioTargetSeconds > 0 && cardioElapsedSeconds >= cardioTargetSeconds
 
   const formatTime = (totalSeconds: number) => {
     const mins = Math.floor(totalSeconds / 60)
@@ -106,38 +114,66 @@ export function GlobalTimer() {
 
   const handleClick = () => {
     localStorage.setItem('daily-fit-view-mode', 'focus')
+    window.dispatchEvent(new Event('view-mode-changed'))
     router.push('/treino')
   }
 
   return (
-    <>
-      
-      {!shouldHideUI && (
+    <div className="fixed bottom-20 md:bottom-6 right-4 z-50 flex flex-col gap-3">
+      {!shouldHideCardioUI && (
         <div 
           onClick={handleClick}
           className={cn(
-            "fixed bottom-20 md:bottom-6 right-4 z-50 rounded-2xl shadow-2xl p-4 cursor-pointer hover:-translate-y-1 transition-all duration-300 flex items-center gap-4 animate-in slide-in-from-bottom-8",
-            isFinished 
+            "rounded-2xl shadow-2xl p-4 cursor-pointer hover:-translate-y-1 transition-all duration-300 flex items-center gap-4 animate-in slide-in-from-bottom-8",
+            isCardioFinished 
               ? "bg-emerald-600 text-white shadow-[0_0_30px_rgba(16,185,129,0.3)]" 
               : "bg-zinc-900 border border-primary text-white shadow-[0_0_30px_rgba(var(--primary),0.2)]"
           )}
         >
           <div className={cn(
             "w-10 h-10 rounded-full flex items-center justify-center",
-            isFinished ? "bg-white/20" : "bg-primary/20 text-primary"
+            isCardioFinished ? "bg-white/20" : "bg-primary/20 text-primary"
           )}>
-            {isFinished ? <CheckCircle2 className="w-5 h-5" /> : <Timer className="w-5 h-5 animate-pulse" />}
+            {isCardioFinished ? <CheckCircle2 className="w-5 h-5" /> : <Activity className="w-5 h-5 animate-pulse" />}
           </div>
           <div>
             <div className="font-bold text-lg leading-none">
-              {isFinished ? "Finalizado!" : formatTime(restTimeLeft)}
+              {formatTime(cardioElapsedSeconds)}
+              {cardioTargetSeconds > 0 && <span className="text-sm font-normal ml-1 opacity-70">/ {formatTime(cardioTargetSeconds)}</span>}
             </div>
-            <div className={cn("text-xs font-medium uppercase tracking-wider mt-1", isFinished ? "text-emerald-100" : "text-zinc-400")}>
-              {isFinished ? "Voltar ao treino" : "Descanso"}
+            <div className={cn("text-xs font-medium uppercase tracking-wider mt-1", isCardioFinished ? "text-emerald-100" : "text-zinc-400")}>
+              {isCardioFinished ? "Cardio Finalizado" : cardioType}
             </div>
           </div>
         </div>
       )}
-    </>
+
+      {!shouldHideRestUI && (
+        <div 
+          onClick={handleClick}
+          className={cn(
+            "rounded-2xl shadow-2xl p-4 cursor-pointer hover:-translate-y-1 transition-all duration-300 flex items-center gap-4 animate-in slide-in-from-bottom-8",
+            isRestFinished 
+              ? "bg-emerald-600 text-white shadow-[0_0_30px_rgba(16,185,129,0.3)]" 
+              : "bg-zinc-900 border border-primary text-white shadow-[0_0_30px_rgba(var(--primary),0.2)]"
+          )}
+        >
+          <div className={cn(
+            "w-10 h-10 rounded-full flex items-center justify-center",
+            isRestFinished ? "bg-white/20" : "bg-primary/20 text-primary"
+          )}>
+            {isRestFinished ? <CheckCircle2 className="w-5 h-5" /> : <Timer className="w-5 h-5 animate-pulse" />}
+          </div>
+          <div>
+            <div className="font-bold text-lg leading-none">
+              {isRestFinished ? "Finalizado!" : formatTime(restTimeLeft)}
+            </div>
+            <div className={cn("text-xs font-medium uppercase tracking-wider mt-1", isRestFinished ? "text-emerald-100" : "text-zinc-400")}>
+              {isRestFinished ? "Voltar ao treino" : "Descanso"}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
   )
 }
