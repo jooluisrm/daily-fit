@@ -9,6 +9,7 @@ import { useDashboardStats } from "@/src/hooks/use-dashboard"
 import { WeightChart } from "@/src/components/dashboard/weight-chart"
 import { CardioChart } from "@/src/components/dashboard/cardio-chart"
 import { WaterTrackerCard } from "@/src/components/dashboard/water-tracker"
+import { ProgressCtaCard } from "@/src/components/dashboard/progress-cta-card"
 import { Carousel, CarouselContent, CarouselItem, CarouselDots } from "@/components/ui/carousel"
 import { motion, Variants } from "framer-motion"
 
@@ -39,6 +40,10 @@ export default function DashboardContent() {
     >
       <motion.div variants={item}>
         <WelcomeCard />
+      </motion.div>
+
+      <motion.div variants={item}>
+        <ProgressCtaCard />
       </motion.div>
 
       <motion.div variants={item}>
