@@ -12,6 +12,7 @@ export type Exercise = {
   id: string;
   name: string;
   imageUrl?: string | null;
+  muscleGroup?: string | null;
 };
 
 export type WorkoutExercise = {

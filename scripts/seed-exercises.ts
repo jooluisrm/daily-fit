@@ -36,13 +36,17 @@ async function main() {
       namesSet.add(nameLower);
       
       const existing = existingMap.get(nameLower);
+      const muscleGroup = (ex.primaryMuscles && ex.primaryMuscles.length > 0) ? ex.primaryMuscles[0] : null;
       
       if (existing) {
-        // If it exists but has NO image URL, and we have one, let's update it!
-        if (!existing.imageUrl && imageUrl) {
+        // Update existing if it lacks imageUrl or muscleGroup
+        if ((!existing.imageUrl && imageUrl) || (!existing.muscleGroup && muscleGroup)) {
           await prisma.exercise.update({
             where: { id: existing.id },
-            data: { imageUrl }
+            data: { 
+              ...(imageUrl && !existing.imageUrl ? { imageUrl } : {}),
+              ...(muscleGroup && !existing.muscleGroup ? { muscleGroup } : {})
+            }
           });
           updatedCount++;
         }
@@ -51,6 +55,7 @@ async function main() {
         exercisesToInsert.push({
           name: ex.name,
           imageUrl: imageUrl,
+          muscleGroup: muscleGroup,
         });
       }
     }
@@ -67,7 +72,7 @@ async function main() {
   }
   
   if (updatedCount > 0) {
-    console.log(`Updated ${updatedCount} existing exercises with missing images.`);
+    console.log(`Updated ${updatedCount} existing exercises with missing images or muscle groups.`);
   }
 
   console.log(`Seeding completely finished!`);

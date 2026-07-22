@@ -108,10 +108,11 @@ model Workout {
 }
 
 model Exercise {
-  id        String   @id @default(cuid())
-  name      String
-  imageUrl  String?
-  createdAt DateTime @default(now())
+  id          String   @id @default(cuid())
+  name        String
+  imageUrl    String?
+  muscleGroup String?
+  createdAt   DateTime @default(now())
 
   workoutExercises WorkoutExercise[]
 }

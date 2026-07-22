@@ -18,6 +18,7 @@ import { useSession } from "next-auth/react"
 import { useWorkoutExercises, useAddExerciseToWorkout, useLogExercise, useCatalogExercises, useUpdateWorkoutExercise, useReorderWorkoutExercises, useDeleteWorkoutExercise } from "@/src/hooks/use-exercise"
 import { toast } from "sonner"
 import { Card } from "@/components/ui/card"
+import { AddExerciseWizard } from "@/src/components/treino/add-exercise-wizard"
 
 const DAYS_MAP = ["DOM", "SEG", "TER", "QUA", "QUI", "SEX", "SÁB"]
 
@@ -31,7 +32,7 @@ export default function WorkoutDetailsPage() {
   const { data: workouts } = useWorkouts()
   const workout = workouts?.find(w => w.id === workoutId)
 
-  const { data: catalogExercises } = useCatalogExercises()
+  const { data: catalogExercises, isLoading: isLoadingCatalog } = useCatalogExercises()
   const { data: exercises, isLoading: isLoadingExercises } = useWorkoutExercises(workoutId)
   const { mutateAsync: addExercise, isPending: isAdding } = useAddExerciseToWorkout(workoutId)
   const { mutateAsync: logExercise } = useLogExercise(workoutId)
@@ -55,30 +56,9 @@ export default function WorkoutDetailsPage() {
   const [isOpen, setIsOpen] = useState(false)
   const [isEditOpen, setIsEditOpen] = useState(false)
   const [exerciseToDelete, setExerciseToDelete] = useState<any>(null)
-  
-  // O formData agora é inicializado com os valores padrão assim que o modal for aberto ou no load.
-  const [formData, setFormData] = useState({ 
-    name: "", 
-    image: "", 
-    sets: "", 
-    reps: "",
-    weightType: "TOTAL"
-  })
-
-  // Preenchemos os defaults quando o user carregar se o form ainda estiver vazio
-  useEffect(() => {
-    if (user && formData.sets === "" && formData.reps === "") {
-      setFormData(prev => ({
-        ...prev,
-        sets: user.defaultSets ? String(user.defaultSets) : "4",
-        reps: user.defaultReps || "10-12"
-      }))
-    }
-  }, [user])
 
   const [editData, setEditData] = useState<{ name: string, daysOfWeek: number[] }>({ name: "", daysOfWeek: [] })
   const [loggingState, setLoggingState] = useState<Record<string, { weight: string; repsDone: string; isSaving: boolean }>>({})
-  const [catalogSearch, setCatalogSearch] = useState("")
 
   const [orderedExercises, setOrderedExercises] = useState(exercises || [])
 
@@ -143,29 +123,22 @@ export default function WorkoutDetailsPage() {
     }))
   }
 
-  const handleAddExercise = async () => {
-    if (!formData.name || !formData.sets || !formData.reps) {
+  const handleAddExercise = async (data: { name: string; image: string; sets: string; reps: string; weightType: string }) => {
+    if (!data.name || !data.sets || !data.reps) {
       toast.error("Preencha o nome, séries e repetições.")
       return
     }
 
     try {
       await addExercise({
-        name: formData.name,
-        image: formData.image,
-        sets: Number(formData.sets),
-        reps: formData.reps,
-        weightType: formData.weightType
+        name: data.name,
+        image: data.image,
+        sets: Number(data.sets),
+        reps: data.reps,
+        weightType: data.weightType
       })
       toast.success("Exercício adicionado!")
       setIsOpen(false)
-      setFormData({ 
-        name: "", 
-        image: "", 
-        sets: user?.defaultSets ? String(user.defaultSets) : "4", 
-        reps: user?.defaultReps || "10-12",
-        weightType: "TOTAL"
-      })
     } catch (error: any) {
       toast.error(error?.response?.data?.error || "Erro ao adicionar.")
     }
@@ -196,18 +169,6 @@ export default function WorkoutDetailsPage() {
       toast.success("Exercício removido!")
     } catch (error: any) {
       toast.error(error?.response?.data?.error || "Erro ao remover exercício.")
-    }
-  }
-
-  const handleSelectCatalog = (value: string | null) => {
-    if (!value) return;
-    const selected = catalogExercises?.find(e => e.name === value)
-    if (selected) {
-      setFormData(prev => ({
-        ...prev,
-        name: selected.name,
-        image: selected.imageUrl || ""
-      }))
     }
   }
 
@@ -291,29 +252,29 @@ export default function WorkoutDetailsPage() {
   return (
     <div className="p-4 md:p-8 max-w-4xl mx-auto w-full pt-8 md:pt-8 animate-in fade-in duration-300">
       {/* Header */}
-      <div className={`mb-8 sm:mb-12 bg-zinc-900/40 p-5 sm:p-8 rounded-2xl border border-zinc-800/50 flex justify-between items-center gap-6 shadow-sm relative overflow-hidden transition-all ${!workout?.isActive ? 'opacity-70 grayscale' : ''}`}>
+      <div className={`mb-8 sm:mb-12 bg-zinc-900/40 p-5 sm:p-8 rounded-2xl border border-zinc-800/50 flex flex-col md:flex-row md:justify-between items-start md:items-center gap-5 shadow-sm relative overflow-hidden transition-all ${!workout?.isActive ? 'opacity-70 grayscale' : ''}`}>
 
         {/* Elemento decorativo */}
         <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3 pointer-events-none" />
 
-        <div className="flex items-center gap-3 relative z-10">
-          <Link href="/treino?tab=list">
+        <div className="flex items-start sm:items-center gap-3 relative z-10 w-full md:w-auto">
+          <Link href="/treino?tab=list" className="shrink-0 mt-1 sm:mt-0">
             <Button variant="ghost" size="icon" className="text-zinc-400 hover:text-white rounded-full bg-zinc-800/50 hover:bg-zinc-800 transition-colors">
               <ArrowLeft className="w-5 h-5" />
             </Button>
           </Link>
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight flex items-center gap-3">
-              {workout?.name}
+          <div className="flex-1 min-w-0">
+            <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight flex flex-wrap items-center gap-2 sm:gap-3">
+              <span className="break-words max-w-full">{workout?.name}</span>
               {!workout?.isActive && (
-                <span className="text-xs bg-red-500/20 text-red-400 px-2.5 py-1 rounded-md font-semibold border border-red-500/30 uppercase tracking-wider">
+                <span className="text-xs bg-red-500/20 text-red-400 px-2.5 py-1 rounded-md font-semibold border border-red-500/30 uppercase tracking-wider shrink-0">
                   Inativo
                 </span>
               )}
             </h1>
             <p className="text-sm text-zinc-400 mt-1 flex items-center gap-2">
-              <CalendarDays className="w-4 h-4 text-primary/70" />
-              <span>
+              <CalendarDays className="w-4 h-4 text-primary/70 shrink-0" />
+              <span className="truncate">
                 {(workout?.daysOfWeek?.length ?? 0) > 0
                   ? workout?.daysOfWeek?.map((d: number) => DAYS_MAP[d]).join(", ")
                   : "Nenhum dia configurado"}
@@ -322,7 +283,7 @@ export default function WorkoutDetailsPage() {
           </div>
         </div>
 
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2 relative z-10 self-end md:self-auto w-full md:w-auto justify-end mt-2 md:mt-0">
           {!workout?.isActive && (
             <AlertDialog>
               <AlertDialogTrigger render={<Button variant="outline" size="icon" disabled={isDeletingWorkout} className="bg-transparent border-red-900/50 text-red-400 hover:bg-red-950/80 hover:text-red-300 hover:border-red-800 transition-colors cursor-pointer" />}>
@@ -430,152 +391,21 @@ export default function WorkoutDetailsPage() {
           <p className="text-sm text-zinc-400">Anote os pesos do dia para acompanhar sua evolução</p>
         </div>
 
-        <Sheet open={isOpen} onOpenChange={setIsOpen}>
-          <SheetTrigger render={
-            <Button className="w-full md:w-auto h-11 px-6 text-base font-medium shadow-lg shadow-primary/20 bg-primary hover:bg-primary/90 text-white" />
-          }>
-            <Plus className="w-5 h-5 mr-2" />
-            Adicionar Exercício
-          </SheetTrigger>
-          <SheetContent className="bg-zinc-950 border-l border-zinc-800 text-zinc-100 sm:max-w-lg w-full overflow-y-auto p-0 flex flex-col">
-            <SheetHeader className="px-6 py-6 border-b border-zinc-800/50 sticky top-0 bg-zinc-950/80 backdrop-blur-xl z-10">
-              <SheetTitle className="text-2xl font-bold text-white tracking-tight">Novo Exercício</SheetTitle>
-              <SheetDescription className="text-zinc-400 text-base">
-                Preencha os detalhes para adicioná-lo ao treino.
-              </SheetDescription>
-            </SheetHeader>
-            <div className="space-y-6 p-6 flex-1">
-
-              {catalogExercises && (
-                (() => {
-                  // Filtra os exercícios que já estão no treino atual
-                  const currentExerciseNames = exercises?.map(we => we.exercise.name) || []
-                  const availableExercises = catalogExercises.filter(ex => !currentExerciseNames.includes(ex.name))
-
-                  if (availableExercises.length === 0) return null;
-
-                  const filteredExercises = availableExercises.filter(ex => ex.name.toLowerCase().includes(catalogSearch.toLowerCase()))
-
-                  return (
-                    <div className="space-y-4 bg-zinc-900/50 p-5 rounded-xl border border-zinc-800/50">
-                      <div>
-                        <Label className="text-zinc-300 font-semibold text-sm">Adicionar do Catálogo</Label>
-                        <p className="text-xs text-zinc-500 mb-1 mt-1">Pesquise e selecione um exercício para preencher automaticamente.</p>
-                      </div>
-
-                      <div className="relative">
-                        <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
-                        <Input
-                          placeholder="Buscar exercício..."
-                          value={catalogSearch}
-                          onChange={e => setCatalogSearch(e.target.value)}
-                          className="pl-9 bg-zinc-950 border-zinc-800 text-zinc-200 focus-visible:ring-primary h-10"
-                        />
-                      </div>
-
-                      <div className="max-h-[280px] overflow-y-auto space-y-2 pr-1 custom-scrollbar">
-                        {filteredExercises.length === 0 ? (
-                          <div className="text-center py-6 text-zinc-500 text-sm">Nenhum exercício encontrado.</div>
-                        ) : (
-                          filteredExercises.map(ex => (
-                            <div
-                              key={ex.id}
-                              onClick={() => handleSelectCatalog(ex.name)}
-                              className="flex items-center gap-4 p-3 rounded-xl border border-zinc-800/60 bg-zinc-950/50 hover:bg-zinc-800/80 cursor-pointer transition-colors group"
-                            >
-                              {ex.imageUrl ? (
-                                <img src={ex.imageUrl} alt={ex.name} className="w-20 h-20 rounded-lg object-cover bg-zinc-800 shadow-sm shrink-0" />
-                              ) : (
-                                <div className="w-20 h-20 rounded-lg bg-zinc-900 flex items-center justify-center text-zinc-600 shadow-sm shrink-0">
-                                  <ImageIcon className="w-8 h-8" />
-                                </div>
-                              )}
-                              <div className="flex-1">
-                                <p className="text-sm font-medium text-zinc-200 group-hover:text-white transition-colors">{ex.name}</p>
-                              </div>
-                              <Plus className="w-4 h-4 text-zinc-600 group-hover:text-primary transition-colors" />
-                            </div>
-                          ))
-                        )}
-                      </div>
-                    </div>
-                  )
-                })()
-              )}
-
-              <div className="space-y-2">
-                <Label htmlFor="image" className="text-zinc-300">URL da Imagem (Opcional)</Label>
-                <div className="flex gap-2">
-                  <Input
-                    id="image"
-                    value={formData.image}
-                    onChange={e => setFormData(p => ({ ...p, image: e.target.value }))}
-                    placeholder="Cole o link da foto do exercício..."
-                    className="bg-zinc-900 border-zinc-800 text-white focus-visible:ring-primary h-11"
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="name" className="text-zinc-300">Nome do Exercício *</Label>
-                <Input
-                  id="name"
-                  value={formData.name}
-                  onChange={e => setFormData(p => ({ ...p, name: e.target.value }))}
-                  placeholder="Ex: Supino Reto com Barra"
-                  className="bg-zinc-900 border-zinc-800 text-white focus-visible:ring-primary h-11"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label className="text-zinc-300">Tipo de Peso *</Label>
-                <select 
-                  value={formData.weightType} 
-                  onChange={e => setFormData(p => ({ ...p, weightType: e.target.value || "TOTAL" }))}
-                  className="flex h-11 w-full items-center justify-between rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary appearance-none"
-                >
-                  <option value="TOTAL" className="bg-zinc-950 text-white py-2">Peso Total</option>
-                  <option value="PER_SIDE" className="bg-zinc-950 text-white py-2">Peso por Lado (Halteres, Polia dupla)</option>
-                </select>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="sets" className="text-zinc-300">Séries *</Label>
-                  <Input
-                    id="sets"
-                    type="number"
-                    value={formData.sets}
-                    onChange={e => setFormData(p => ({ ...p, sets: e.target.value }))}
-                    placeholder="Ex: 4"
-                    className="bg-zinc-900 border-zinc-800 text-white focus-visible:ring-primary h-11"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="reps" className="text-zinc-300">Repetições *</Label>
-                  <Input
-                    id="reps"
-                    value={formData.reps}
-                    onChange={e => setFormData(p => ({ ...p, reps: e.target.value }))}
-                    placeholder="Ex: 10-12"
-                    className="bg-zinc-900 border-zinc-800 text-white focus-visible:ring-primary h-11"
-                  />
-                </div>
-              </div>
-
-              <div className="pt-4 pb-8">
-                <Button
-                  onClick={handleAddExercise}
-                  disabled={isAdding}
-                  className="w-full h-12 text-base font-semibold transition-colors shadow-lg shadow-primary/20 bg-primary hover:bg-primary/90 text-white"
-                >
-                  {isAdding ? <Loader2 className="w-5 h-5 mr-2 animate-spin" /> : <Save className="w-5 h-5 mr-2" />}
-                  Cadastrar Exercício
-                </Button>
-              </div>
-            </div>
-          </SheetContent>
-        </Sheet>
+        <Button onClick={() => setIsOpen(true)} className="w-full md:w-auto h-11 px-6 text-base font-medium shadow-lg shadow-primary/20 bg-primary hover:bg-primary/90 text-white">
+          <Plus className="w-5 h-5 mr-2" />
+          Adicionar Exercício
+        </Button>
+        <AddExerciseWizard
+          isOpen={isOpen}
+          onClose={() => setIsOpen(false)}
+          catalogExercises={catalogExercises}
+          isLoadingCatalog={isLoadingCatalog}
+          currentExercises={exercises}
+          onAdd={handleAddExercise}
+          isAdding={isAdding}
+          defaultSets={user?.defaultSets ? String(user.defaultSets) : "4"}
+          defaultReps={user?.defaultReps || "10-12"}
+        />
       </div>
 
       {/* Lista */}
