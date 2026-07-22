@@ -133,4 +133,58 @@ export class WorkoutLogService {
       }
     });
   }
+
+  /**
+   * Busca o histórico de treinos (concluídos) do usuário.
+   */
+  static async getHistory(userId: string) {
+    return await prisma.workoutLog.findMany({
+      where: {
+        userId,
+        status: "COMPLETED",
+      },
+      orderBy: {
+        date: 'desc'
+      },
+      include: {
+        workout: {
+          select: { name: true }
+        },
+        cardioLogs: {
+          select: { duration: true }
+        }
+      }
+    });
+  }
+
+  /**
+   * Busca os detalhes de um treino histórico específico.
+   */
+  static async getHistoryDetail(userId: string, workoutLogId: string) {
+    return await prisma.workoutLog.findFirst({
+      where: {
+        id: workoutLogId,
+        userId,
+      },
+      include: {
+        workout: {
+          select: { name: true }
+        },
+        cardioLogs: true,
+        exerciseLogs: {
+          include: {
+            workoutExercise: {
+              include: {
+                exercise: true
+              }
+            }
+          },
+          orderBy: [
+            { workoutExercise: { order: 'asc' } },
+            { setNumber: 'asc' }
+          ]
+        }
+      }
+    });
+  }
 }

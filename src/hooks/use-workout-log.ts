@@ -71,6 +71,22 @@ export const useToggleWorkoutStatus = (workoutId: string | undefined) => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['workout-status', workoutId] });
       queryClient.invalidateQueries({ queryKey: ['today-all-workout-logs'] });
+      queryClient.invalidateQueries({ queryKey: ['workout-history'] });
     },
+  });
+};
+
+export const useWorkoutHistory = () => {
+  return useQuery({
+    queryKey: ['workout-history'],
+    queryFn: () => WorkoutLogAPI.getHistory(),
+  });
+};
+
+export const useWorkoutHistoryDetail = (workoutLogId: string) => {
+  return useQuery({
+    queryKey: ['workout-history-detail', workoutLogId],
+    queryFn: () => WorkoutLogAPI.getHistoryDetail(workoutLogId),
+    enabled: !!workoutLogId,
   });
 };

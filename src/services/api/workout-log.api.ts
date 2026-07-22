@@ -37,5 +37,15 @@ export const WorkoutLogAPI = {
   toggleWorkoutStatus: async (workoutId: string, isCompleted: boolean, startIso?: string, endIso?: string): Promise<WorkoutLog | null> => {
     const response = await api.post(`/workouts/${workoutId}/status`, { isCompleted, startIso, endIso });
     return response.data;
+  },
+
+  getHistory: async (): Promise<any[]> => {
+    const response = await api.get(`/workouts/history`);
+    return response.data;
+  },
+
+  getHistoryDetail: async (workoutLogId: string): Promise<any> => {
+    const response = await api.get(`/workouts/history/${workoutLogId}`);
+    return response.data;
   }
 };
