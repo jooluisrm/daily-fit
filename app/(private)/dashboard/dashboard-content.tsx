@@ -9,6 +9,7 @@ import { useDashboardStats } from "@/src/hooks/use-dashboard"
 import { WeightChart } from "@/src/components/dashboard/weight-chart"
 import { CardioChart } from "@/src/components/dashboard/cardio-chart"
 import { WaterTrackerCard } from "@/src/components/dashboard/water-tracker"
+import { CreatineTrackerCard } from "@/src/components/dashboard/creatine-tracker-card"
 import { ProgressCtaCard } from "@/src/components/dashboard/progress-cta-card"
 import { Carousel, CarouselContent, CarouselItem, CarouselDots } from "@/components/ui/carousel"
 import { motion, Variants } from "framer-motion"
@@ -68,8 +69,9 @@ export default function DashboardContent() {
         <div className="w-full h-full flex flex-col">
           <TodayWorkoutCard />
         </div>
-        <div className="w-full h-full flex flex-col">
+        <div className="w-full h-full flex flex-col gap-6">
           <WaterTrackerCard />
+          <CreatineTrackerCard />
         </div>
       </motion.div>
 

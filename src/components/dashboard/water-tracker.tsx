@@ -84,7 +84,7 @@ export function WaterTrackerCard() {
 
   return (
     <>
-      <Card className={`relative overflow-hidden bg-gradient-to-br from-zinc-900/90 to-zinc-950 flex flex-col h-full transition-all group hover:border-zinc-700/50 hover:scale-[1.02] shadow-sm ${isCompleted ? 'border-emerald-500/30 shadow-[0_0_20px_rgba(16,185,129,0.05)]' : 'border-zinc-800/50'}`}>
+      <Card className={`relative overflow-hidden bg-gradient-to-br from-zinc-900/90 to-zinc-950 flex flex-col transition-all group hover:border-zinc-700/50 hover:scale-[1.02] shadow-sm ${isCompleted ? 'border-emerald-500/30 shadow-[0_0_20px_rgba(16,185,129,0.05)]' : 'border-zinc-800/50'}`}>
         <div className="absolute -right-12 -top-12 w-32 h-32 bg-blue-500/5 rounded-full blur-3xl group-hover:bg-blue-500/10 transition-colors pointer-events-none" />
         <CardHeader className="pb-2 flex flex-row items-start justify-between relative z-10">
           <CardTitle className="text-base font-semibold text-white flex items-center gap-2">

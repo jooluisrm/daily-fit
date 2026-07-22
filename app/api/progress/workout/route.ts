@@ -11,6 +11,7 @@ export async function GET(req: Request) {
 
     const { searchParams } = new URL(req.url);
     const range = searchParams.get('range') || '30d';
+    const tz = searchParams.get('tz') || 'America/Sao_Paulo';
 
     const now = new Date();
     let startDate = new Date();
@@ -43,13 +44,14 @@ export async function GET(req: Request) {
 
     logs.forEach(log => {
       let key = "";
+      const dateParts = new Intl.DateTimeFormat('pt-BR', { timeZone: tz, day: '2-digit', month: '2-digit', year: '2-digit' }).formatToParts(log.date);
+      const day = dateParts.find(p => p.type === 'day')?.value;
+      const month = dateParts.find(p => p.type === 'month')?.value;
+      const year = dateParts.find(p => p.type === 'year')?.value;
+
       if (range === '1y') {
-        const month = String(log.date.getMonth() + 1).padStart(2, '0');
-        const year = String(log.date.getFullYear()).slice(2);
         key = `${month}/${year}`;
       } else {
-        const day = String(log.date.getDate()).padStart(2, '0');
-        const month = String(log.date.getMonth() + 1).padStart(2, '0');
         key = `${day}/${month}`;
       }
       

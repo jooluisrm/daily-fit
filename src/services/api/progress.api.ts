@@ -30,17 +30,20 @@ export type WaterProgressData = {
 
 export const ProgressAPI = {
   getWorkoutProgress: async (range: string = '30d'): Promise<WorkoutProgressData[]> => {
-    const response = await api.get(`/progress/workout?range=${range}`);
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const response = await api.get(`/progress/workout?range=${range}&tz=${tz}`);
     return response.data;
   },
   
   getCardioProgress: async (range: string = '30d'): Promise<CardioProgressData[]> => {
-    const response = await api.get(`/progress/cardio?range=${range}`);
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const response = await api.get(`/progress/cardio?range=${range}&tz=${tz}`);
     return response.data;
   },
 
   getWaterProgress: async (range: string = '30d'): Promise<WaterProgressData[]> => {
-    const response = await api.get(`/progress/water?range=${range}`);
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const response = await api.get(`/progress/water?range=${range}&tz=${tz}`);
     return response.data;
   },
 
