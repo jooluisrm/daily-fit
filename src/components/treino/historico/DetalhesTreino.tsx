@@ -1,9 +1,12 @@
 "use client";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Dumbbell, Calendar, Activity, Timer, Target, Flame, ActivitySquare } from "lucide-react";
+import { Dumbbell, Calendar, Activity, Timer, Target, Flame, ActivitySquare, Share2, Loader2 } from "lucide-react";
 import { useWorkoutHistoryDetail } from "@/src/hooks/use-workout-log";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
+import { useState } from "react";
+import { ShareWorkoutSheet } from "../share/ShareWorkoutSheet";
 
 function formatTime(minutes: number) {
   const h = Math.floor(minutes / 60);
@@ -14,6 +17,7 @@ function formatTime(minutes: number) {
 
 export function DetalhesTreino({ workoutId }: { workoutId: string }) {
   const { data: detail, isLoading } = useWorkoutHistoryDetail(workoutId);
+  const [isShareSheetOpen, setIsShareSheetOpen] = useState(false);
 
   if (isLoading) {
     return (
@@ -74,8 +78,33 @@ export function DetalhesTreino({ workoutId }: { workoutId: string }) {
     });
   });
 
+  // Ordenar exercícios por volume para pegar os destaques
+  const topExercises = [...exercises].sort((a, b) => {
+    const volA = a.sets.reduce((acc: number, set: any) => acc + (set.weight * set.repsDone), 0);
+    const volB = b.sets.reduce((acc: number, set: any) => acc + (set.weight * set.repsDone), 0);
+    return volB - volA;
+  }).map(ex => ({
+    name: ex.exerciseName,
+    volume: ex.sets.reduce((acc: number, set: any) => acc + (set.weight * set.repsDone), 0),
+    sets: ex.sets.length
+  }));
+
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-6 relative">
+      <ShareWorkoutSheet
+        isOpen={isShareSheetOpen}
+        onOpenChange={setIsShareSheetOpen}
+        workoutData={{
+          workoutName: detail.workout?.name || "Treino Concluído",
+          date: new Date(detail.date).toLocaleDateString('pt-BR'),
+          durationMins: totalTimeMinutes,
+          totalVolume: totalWorkoutVolume,
+          exercisesCount: exercises.length,
+          topExercises: topExercises,
+          cardioDurationMins: cardioTimeMinutes
+        }}
+      />
+
       {/* Resumo do Treino */}
       <Card className="bg-zinc-900/50 border-zinc-800">
         <CardContent className="p-5 flex flex-col gap-4">
@@ -91,9 +120,21 @@ export function DetalhesTreino({ workoutId }: { workoutId: string }) {
                   {detail.workout?.name || "Treino Concluído"}
                </h2>
                
-               <div className="flex items-center gap-2 bg-zinc-800/80 px-3 py-1.5 rounded-lg border border-zinc-700 w-fit">
-                 <span className="text-xs text-zinc-400 uppercase font-semibold">Volume Total:</span>
-                 <span className="text-sm font-bold text-zinc-100">{totalWorkoutVolume} kg</span>
+               <div className="flex flex-wrap items-center gap-3">
+                 <div className="flex items-center gap-2 bg-zinc-800/80 px-3 py-1.5 rounded-lg border border-zinc-700 w-fit">
+                   <span className="text-xs text-zinc-400 uppercase font-semibold">Volume Total:</span>
+                   <span className="text-sm font-bold text-zinc-100">{totalWorkoutVolume} kg</span>
+                 </div>
+                 
+                 <Button 
+                   onClick={() => setIsShareSheetOpen(true)}
+                   variant="outline" 
+                   size="sm"
+                   className="bg-zinc-900 border-zinc-700 hover:bg-zinc-800 text-zinc-200 transition-colors h-[34px]"
+                 >
+                   <Share2 className="w-4 h-4 mr-2" />
+                   Exportar
+                 </Button>
                </div>
              </div>
           </div>

@@ -29,10 +29,12 @@ import { RestTimer } from "./rest-timer"
 import { TreinoFocusView } from "./treino-focus-view"
 import { List, Focus } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
+import { ShareWorkoutSheet } from "./share/ShareWorkoutSheet"
 
 const DAYS_MAP = ["Domingo", "Segunda-feira", "Terça-feira", "Quarta-feira", "Quinta-feira", "Sexta-feira", "Sábado"]
 
 export function TreinoToday() {
+  const [isShareSheetOpen, setIsShareSheetOpen] = useState(false)
   const [cardioIntensity, setCardioIntensity] = useState<string>("moderado")
   const [cardioTime, setCardioTime] = useState<string>("")
   const [swappedWorkoutId, setSwappedWorkoutId] = useState<string | null>(null)
@@ -561,8 +563,29 @@ export function TreinoToday() {
     const exercisePercent = totalDuration > 0 ? (exerciseDurationMins / totalDuration) * 100 : 0;
     const cardioPercent = totalDuration > 0 ? (cardioDurationMins / totalDuration) * 100 : 0;
 
+    // Ordenar para destaque no card de share
+    const topExercises = [...doneExercises].sort((a, b) => b.todayVolume - a.todayVolume).map(ex => ({
+      name: ex.exercise.name,
+      volume: ex.todayVolume,
+      sets: ex.todayLogs.length
+    }));
+
     return (
-      <div className="space-y-6 sm:space-y-8 animate-in fade-in duration-500 pb-24">
+      <div className="space-y-6 sm:space-y-8 animate-in fade-in duration-500 pb-24 relative">
+        <ShareWorkoutSheet
+          isOpen={isShareSheetOpen}
+          onOpenChange={setIsShareSheetOpen}
+          workoutData={{
+            workoutName: todayWorkout?.name || "Treino Concluído",
+            date: new Date().toLocaleDateString('pt-BR'),
+            durationMins: totalDuration,
+            totalVolume: totalTodayVolume,
+            exercisesCount: doneExercises.length,
+            topExercises: topExercises,
+            cardioDurationMins: cardioDurationMins
+          }}
+        />
+
         {completedLogs.length > 1 && (
           <div className="flex gap-1 p-1 bg-zinc-900 border border-zinc-800 rounded-xl overflow-x-auto w-full sm:w-auto no-scrollbar">
             {completedLogs.map((log: any) => (
@@ -611,9 +634,10 @@ export function TreinoToday() {
             <Button
               variant="outline"
               className="rounded-full bg-white/5 border-white/10 hover:bg-white/10 text-white font-medium shadow-sm transition-all active:scale-95"
-              onClick={() => alert("Compartilhar com redes sociais - Em breve!")}
+              onClick={() => setIsShareSheetOpen(true)}
             >
-              <Share2 className="w-4 h-4 mr-2" /> Compartilhar Conquista
+              <Share2 className="w-4 h-4 mr-2" />
+              Compartilhar Conquista
             </Button>
           </div>
 
